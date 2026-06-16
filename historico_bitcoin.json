@@ -3,5 +3,10 @@
         "data": "2026-06-16",
         "preco_8h": 65734.0,
         "direcao": "CAIR"
+    },
+    {
+        "data": "2026-06-16",
+        "preco_8h": 65709.0,
+        "direcao": "SUBIR"
     }
 ]
