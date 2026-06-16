@@ -23,9 +23,16 @@ def enviar_telegram(mensagem):
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
-        requests.post(url, json={"chat_id": chat_id, "text": mensagem, "parse_mode": "Markdown"})
+        # Removemos o parse_mode para o Telegram não bloquear caracteres especiais gerados pela IA
+        response = requests.post(url, json={"chat_id": chat_id, "text": mensagem})
+        
+        # Força o Python a mostrar-nos se o Telegram rejeitou a entrega
+        if response.status_code != 200:
+            print(f"⚠️ ERRO DO TELEGRAM: {response.text}")
+        else:
+            print("✅ Mensagem entregue ao Telegram com sucesso!")
     except Exception as e:
-        print(f"Erro no Telegram: {e}")
+        print(f"Erro de conexão com o Telegram: {e}")
 
 def manipular_historico(acao, dados=None):
     if acao == "ler":
