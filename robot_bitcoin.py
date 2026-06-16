@@ -71,7 +71,7 @@ def previsao_manha():
     """
     
     response = client_gemini.models.generate_content(
-        model='gemini-2.5-pro',
+        model='gemini-2.5-flash',
         contents=prompt,
         config={
             "tools": [{"google_search": {}}], 
@@ -124,7 +124,7 @@ def verificacao_noite():
     """
     
     response = client_gemini.models.generate_content(
-        model='gemini-2.5-pro',
+        model='gemini-2.5-flash',
         contents=prompt,
         config={"response_mime_type": "application/json"}
     )
