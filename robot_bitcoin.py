@@ -9,11 +9,13 @@ client_gemini = genai.Client()
 HISTORICO_FILE = "historico_bitcoin.json"
 
 def obter_preco_bitcoin():
+    """Procura o preço atual do BTC através da API pública do CoinGecko (compatível com GitHub Actions)"""
     try:
-        response = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
-        return float(response.json()["price"])
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        response = requests.get(url)
+        return float(response.json()["bitcoin"]["usd"])
     except Exception as e:
-        print(f"Erro na Binance: {e}")
+        print(f"Erro na API de preço: {e}")
         return None
 
 def enviar_telegram(mensagem):
