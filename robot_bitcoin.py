@@ -74,9 +74,7 @@ def previsao_manha():
         model='gemini-2.5-flash',
         contents=prompt,
         config={
-            "tools": [{"google_search": {}}], 
-            # Removemos a linha do response_mime_type daqui
-            "thinking_config": {"thinking_level": "HIGH"}
+            "tools": [{"google_search": {}}]
         }
     )
     
