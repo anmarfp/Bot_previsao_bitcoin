@@ -2,6 +2,7 @@ name: Fim do Dia - Avaliação
 on:
   schedule:
     - cron: '0 1 * * *' # 01:00 UTC (do dia seguinte) = 22:00 BRT
+  workflow_dispatch:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
