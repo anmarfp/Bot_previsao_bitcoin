@@ -75,12 +75,14 @@ def previsao_manha():
         contents=prompt,
         config={
             "tools": [{"google_search": {}}], 
-            "response_mime_type": "application/json",
+            # Removemos a linha do response_mime_type daqui
             "thinking_config": {"thinking_level": "HIGH"}
         }
     )
     
-    dados = json.loads(response.text)
+    # Limpeza do texto caso o Gemini adicione aspas ou blocos de código Markdown
+    texto_resposta = response.text.replace("```json", "").replace("```", "").strip()
+    dados = json.loads(texto_resposta)
     
     # Salva a previsão de hoje
     nova_entrada = {
