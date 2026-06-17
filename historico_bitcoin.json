@@ -7,6 +7,9 @@
     {
         "data": "2026-06-16",
         "preco_8h": 65709.0,
-        "direcao": "SUBIR"
+        "direcao": "SUBIR",
+        "preco_noite": 64751.0,
+        "resultado": "❌ ERROU",
+        "aprendizado": "Previ uma subida, mas o mercado caiu. Devo ser mais cauteloso com previsões direcionais, reconhecendo a alta volatilidade e focando em cenários prováveis em vez de certezas."
     }
 ]
