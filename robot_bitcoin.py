@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import datetime
+import time
 import requests
 from google import genai
 
@@ -48,11 +49,41 @@ def manipular_historico(acao, dados=None):
 # TAREFA 1: ATUALIZAÇÃO A CADA 2 HORAS
 # ==========================================
 def relatorio_duas_horas():
-    preco = obter_preco_bitcoin()
-    if preco:
-        hora_atual = datetime.datetime.now().strftime('%H:%M')
-        msg = f"⏱️ *Atualização BTC ({hora_atual})*\nO preço atual do Bitcoin na Binance é: *$ {preco:,.2f}*"
-        enviar_telegram(msg)
+    preco_atual = obter_preco_bitcoin()
+    if not preco_atual:
+        return
+
+    mensagem_extra = ""
+    preco_anterior = None
+    ficheiro_memoria = "ultimo_preco.txt"
+
+    # 1. Tenta ler o preço da última notificação
+    if os.path.exists(ficheiro_memoria):
+        try:
+            with open(ficheiro_memoria, "r") as f:
+                preco_anterior = float(f.read().strip())
+        except Exception:
+            pass
+
+    # 2. Calcula a diferença e a porcentagem se houver um preço anterior
+    if preco_anterior:
+        diferenca = preco_atual - preco_anterior
+        porcentagem = (diferenca / preco_anterior) * 100
+        
+        # Formatação de sinais e emojis
+        sinal = "+" if diferenca > 0 else ""
+        emoji = "🟢" if diferenca > 0 else ("🔴" if diferenca < 0 else "⚪")
+        
+        mensagem_extra = f"\n\n{emoji} *Variação:* {sinal}{porcentagem:.2f}%\n⏮️ *Preço anterior:* $ {preco_anterior:,.2f}"
+
+    # 3. Guarda o preço atual para ser o "anterior" na próxima vez
+    with open(ficheiro_memoria, "w") as f:
+        f.write(str(preco_atual))
+
+    # 4. Envia a notificação
+    hora_atual = datetime.datetime.now().strftime('%H:%M')
+    msg = f"⏱️ *Atualização BTC ({hora_atual} UTC)*\n💰 *Preço atual:* $ {preco_atual:,.2f}{mensagem_extra}"
+    enviar_telegram(msg)
 
 # ==========================================
 # TAREFA 2: PREVISÃO ÀS 8H DA MANHÃ
@@ -135,6 +166,23 @@ def verificacao_noite():
         contents=prompt,
         config={"response_mime_type": "application/json"}
     )
+
+    max_tentativas = 5
+    for tentativa in range(max_tentativas):
+        try:
+            response = client_gemini.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config={"response_mime_type": "application/json"}
+            )
+            break  # Se deu certo, quebra o loop e continua o código
+            
+        except Exception as e:
+            if "503" in str(e) and tentativa < max_tentativas - 1:
+                print(f"Servidor do Google ocupado. A aguardar 20 segundos... (Tentativa {tentativa + 1}/{max_tentativas})")
+                time.sleep(20) # Espera 15 segundos antes de tentar de novo
+            else:
+                raise e # Se o erro não for 503 ou se acabarem as tentativas, mostra o erro
     
     dados = json.loads(response.text)
     hoje["preco_noite"] = preco_atual
