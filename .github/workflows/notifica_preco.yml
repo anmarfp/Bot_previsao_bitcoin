@@ -1,12 +1,13 @@
 name: A Cada 2 Horas - Preço
 on:
   schedule:
-    # Roda às 0h, 2h, 4h, 6h, 10h, 12h, 14h, 16h, 18h e 20h (Horário de Brasília)
-    - cron: '0 3,7,11,15,19,23 * * *'
+    - cron: '0 3,5,7,9,11,13,15,17,19,21,23 * * *'
   workflow_dispatch:
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    permissions: { contents: write } # <-- Permissão adicionada aqui
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,3 +18,12 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          
+      # <-- Bloco adicionado para salvar a memória do preço
+      - name: Salvar Memória do Preço
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "bot@noreply.com"
+          git add ultimo_preco.txt
+          git commit -m "Auto: Atualiza memória de curto prazo do preço" || echo "Sem mudanças"
+          git push
