@@ -15,6 +15,9 @@
     {
         "data": "2026-06-17",
         "preco_8h": 64754.0,
-        "direcao": "CAIR"
+        "direcao": "CAIR",
+        "preco_noite": 63836.0,
+        "resultado": "✅ ACERTOU",
+        "aprendizado": "A previsão de queda se confirmou, demonstrando a eficácia do raciocínio aplicado. Manter a atenção nos mesmos indicadores e fatores que influenciaram essa tendência para futuras análises."
     }
 ]
