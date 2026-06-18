@@ -26,4 +26,5 @@ jobs:
           git config --global user.email "bot@noreply.com"
           git add ultimo_preco.txt
           git commit -m "Auto: Atualiza memória de curto prazo do preço" || echo "Sem mudanças"
+          git pull --rebase
           git push
