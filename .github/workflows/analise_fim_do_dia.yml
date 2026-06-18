@@ -23,4 +23,5 @@ jobs:
           git config --global user.email "bot@noreply.com"
           git add historico_bitcoin.json
           git commit -m "Auto: Avaliação da noite" || echo "Sem mudanças"
+          git pull --rebase
           git push
