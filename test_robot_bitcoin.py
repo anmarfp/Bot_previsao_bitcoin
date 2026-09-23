@@ -412,5 +412,188 @@ class TestRobotBitcoin(unittest.TestCase):
         self.assertEqual(robot_bitcoin.obter_velas(), [60000.0, 61000.0])
 
 
+
+
+    @patch('robot_bitcoin.time.sleep')
+    @patch('robot_bitcoin.genai.Client')
+    def test_gerar_json_regressao_503(self, mock_client_class, mock_sleep):
+        # a. 8 respostas 503 seguidas de uma resposta válida -> gerar_json devolve o JSON.
+        # Mais ainda: 20 falhas para testar ESPERA_MAXIMA.
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        
+        from google.genai.errors import ServerError, ClientError
+        # 20 erros temporarios e 1 sucesso
+        side_effects = [ServerError(503, {"error": {"code": 503, "message": "x", "status": "UNAVAILABLE"}})] * 20
+        mock_response = MagicMock()
+        mock_response.text = '{"chave": "valor"}'
+        side_effects.append(mock_response)
+        
+        mock_client.models.generate_content.side_effect = side_effects
+        
+        def validar_mock(d): pass
+        
+        dados = robot_bitcoin.gerar_json("prompt", {}, validar_mock)
+        self.assertEqual(dados, {"chave": "valor"})
+        
+        # Verificar esperas
+        self.assertEqual(mock_sleep.call_count, 20)
+        esperas = [call[0][0] for call in mock_sleep.call_args_list]
+        self.assertEqual(esperas[0], 20)
+        self.assertEqual(esperas[1], 40)
+        self.assertEqual(esperas[-1], robot_bitcoin.ESPERA_MAXIMA) # Teto
+        self.assertTrue(all(e <= robot_bitcoin.ESPERA_MAXIMA for e in esperas))
+
+    @patch('robot_bitcoin.time.sleep')
+    @patch('robot_bitcoin.genai.Client')
+    def test_gerar_json_timeout_rede(self, mock_client_class, mock_sleep):
+        # b. httpx.ReadTimeout duas vezes e depois sucesso -> ESPERA_TIMEOUT
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        
+        import httpx
+        side_effects = [httpx.ReadTimeout("Timeout"), httpx.ReadTimeout("Timeout")]
+        mock_response = MagicMock()
+        mock_response.text = '{"chave": "valor"}'
+        side_effects.append(mock_response)
+        
+        mock_client.models.generate_content.side_effect = side_effects
+        
+        def validar_mock(d): pass
+        
+        dados = robot_bitcoin.gerar_json("prompt", {}, validar_mock)
+        self.assertEqual(dados, {"chave": "valor"})
+        
+        self.assertEqual(mock_sleep.call_count, 2)
+        esperas = [call[0][0] for call in mock_sleep.call_args_list]
+        self.assertEqual(esperas, [robot_bitcoin.ESPERA_TIMEOUT, robot_bitcoin.ESPERA_TIMEOUT])
+        
+        # genai.Client criado com timeout TIMEOUT_GEMINI_MS
+        from google.genai import types
+        # call_args de Client()
+        kwargs = mock_client_class.call_args[1]
+        self.assertIn('http_options', kwargs)
+        self.assertEqual(kwargs['http_options'].timeout, robot_bitcoin.TIMEOUT_GEMINI_MS)
+
+    @patch('robot_bitcoin.time.sleep')
+    @patch('robot_bitcoin.genai.Client')
+    def test_gerar_json_erros_fatais_e_invalidos(self, mock_client_class, mock_sleep):
+        # c. ClientError 400 -> relançado sem sleep; JSON inválido 5 vezes -> ValueError
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        
+        from google.genai.errors import ServerError, ClientError
+        mock_client.models.generate_content.side_effect = ClientError(400, {"error": {"code": 400, "message": "x", "status": "INVALID_ARGUMENT"}})
+        
+        def validar_mock(d): pass
+        
+        with self.assertRaises(ClientError):
+            robot_bitcoin.gerar_json("prompt", {}, validar_mock)
+        self.assertEqual(mock_sleep.call_count, 0)
+        
+        # JSON inválido 5 vezes
+        mock_response = MagicMock()
+        mock_response.text = 'nao e json'
+        mock_client.models.generate_content.side_effect = [mock_response] * 5
+        
+        with self.assertRaises(ValueError):
+            robot_bitcoin.gerar_json("prompt", {}, validar_mock)
+            
+        self.assertEqual(mock_sleep.call_count, 4) # Falha na 5a tentativa levanta excecao sem sleep extra
+
+    @patch('robot_bitcoin.obter_preco_bitcoin')
+    @patch('robot_bitcoin.gerar_json')
+    @patch('robot_bitcoin.agora')
+    @patch('robot_bitcoin.enviar_telegram')
+    def test_concorrencia_noite(self, mock_enviar, mock_agora, mock_gerar_json, mock_obter_preco):
+        # d. Concorrência na noite
+        mock_agora.return_value = datetime.datetime(2026, 9, 23, 22, 0, tzinfo=robot_bitcoin.FUSO_BRT)
+        mock_obter_preco.return_value = 11000.0
+        
+        entrada_original = {
+            "data": "2026-09-23",
+            "preco_8h": 10000.0,
+            "direcao": "SUBIR"
+        }
+        with open("historico_bitcoin.json", "w") as f:
+            import json
+            json.dump([entrada_original], f)
+            
+        def mock_gerar_json_side_effect(prompt, config, validar):
+            # Simula que durante a geracao de JSON da noite, a previsao da manha seguinte rodou
+            hist = robot_bitcoin.manipular_historico("ler")
+            nova_entrada = {
+                "data": "2026-09-24",
+                "preco_8h": 11000.0,
+                "direcao": "CAIR"
+            }
+            hist.append(nova_entrada)
+            robot_bitcoin.manipular_historico("salvar", hist)
+            return {"aprendizado": "x"}
+            
+        mock_gerar_json.side_effect = mock_gerar_json_side_effect
+        
+        robot_bitcoin.verificacao_noite()
+        
+        hist = robot_bitcoin.manipular_historico("ler")
+        self.assertEqual(len(hist), 2)
+        # Verifica se a entrada original foi avaliada e esta na posicao 0
+        self.assertEqual(hist[0]["data"], "2026-09-23")
+        self.assertEqual(hist[0]["resultado"], "✅ ACERTOU")
+        # Verifica se a nova entrada continuou intacta
+        self.assertEqual(hist[1]["data"], "2026-09-24")
+        self.assertNotIn("resultado", hist[1])
+
+    @patch('robot_bitcoin.obter_mercado')
+    @patch('robot_bitcoin.obter_noticias')
+    @patch('robot_bitcoin.gerar_json')
+    @patch('robot_bitcoin.agora')
+    @patch('robot_bitcoin.obter_velas')
+    @patch('robot_bitcoin.obter_derivativos')
+    @patch('robot_bitcoin.enviar_telegram')
+    def test_concorrencia_manha(self, mock_enviar, mock_derivativos, mock_velas, mock_agora, mock_gerar_json, mock_noticias, mock_mercado):
+        # e. Concorrência na manhã (sem rede: mercado e notícias simulados)
+        mock_agora.return_value = datetime.datetime(2026, 9, 24, 8, 0, tzinfo=robot_bitcoin.FUSO_BRT)
+        mock_mercado.return_value = {
+            "preco": 11000.0, "var_24h": 1.0, "var_7d": 2.0,
+            "max_24h": 11100.0, "min_24h": 10900.0, "volume_24h": 1e9, "fear_greed": None
+        }
+        mock_noticias.return_value = [{"fonte": "f", "titulo": "t", "resumo": "", "data": datetime.datetime.now(datetime.timezone.utc)}]
+        mock_velas.return_value = [10000.0] * 100
+        mock_derivativos.return_value = {"funding": 0, "oi_var_24h": 0, "ls_ratio": 1}
+        
+        entrada_anterior = {
+            "data": "2026-09-23",
+            "preco_8h": 10000.0,
+            "direcao": "SUBIR"
+        }
+        with open("historico_bitcoin.json", "w") as f:
+            json.dump([entrada_anterior], f)
+            
+        def mock_gerar_json_side_effect(*args, **kwargs):
+            # Simula que durante a geracao de JSON da manha, a avaliacao da noite anterior terminou
+            hist = robot_bitcoin.manipular_historico("ler")
+            hist[0]["resultado"] = "✅ ACERTOU"
+            robot_bitcoin.manipular_historico("salvar", hist)
+            
+            return {
+                "noticias": "x",
+                "direcao_prevista": "SUBIR",
+                "probabilidade_subir": 60,
+                "justificativa": "x"
+            }
+            
+        mock_gerar_json.side_effect = mock_gerar_json_side_effect
+        
+        
+        robot_bitcoin.previsao_manha()
+        
+        hist = robot_bitcoin.manipular_historico("ler")
+        self.assertEqual(len(hist), 2)
+        # Avaliacao da entrada anterior foi preservada?
+        self.assertEqual(hist[0]["resultado"], "✅ ACERTOU")
+        # Nova entrada foi inserida?
+        self.assertEqual(hist[1]["data"], "2026-09-24")
+
 if __name__ == '__main__':
     unittest.main()
