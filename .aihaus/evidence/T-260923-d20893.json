@@ -1,0 +1,98 @@
+{
+  "schema": "aihaus.evidence.v1",
+  "task": "T-260923-d20893-gemini-indisponivel-tentar-ate-conseguir",
+  "commit": "975a58f",
+  "verdict": "PASS",
+  "review": "Revisão do orquestrador: diff inspecionado contra o briefing; o teste de regressão foi executado contra o código anterior; o teste da manhã, que acessava a rede real, foi corrigido.",
+  "acceptance": [
+    {
+      "criterion": "Indisponibilidade: Given o Gemini responde com um código temporário (429, 500, 502, 503 ou 504) mais vezes do que o antigo limite de 5 When gerar_json é chamado Then continua tentando, com espera crescente limitada a ESPERA_MAXIMA, até obter uma resposta válida (teste de regressão com 8 respostas 503 seguidas de sucesso; falha no código anterior).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 18 tests OK em 0.09 s, commit 975a58f; cobre: test_gerar_json_regressao_503 (20 respostas 503 e depois sucesso; esperas crescentes com teto de 300 s)"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest test_robot_bitcoin.TestRobotBitcoin.test_gerar_json_regressao_503 (com robot_bitcoin.py de c08a04b)",
+          "exit_code": 0,
+          "detail": "O teste de regressão FALHA no código anterior (FAILED errors=1, ServerError 503; o processo sai com 1). A verificação é o orquestrador ter observado essa falha."
+        }
+      ]
+    },
+    {
+      "criterion": "Timeout: Given a chamada ao Gemini estoura o timeout do cliente (httpx.TimeoutException) ou tem outra falha de rede (httpx.TransportError) When gerar_json é chamado Then espera alguns minutos (ESPERA_TIMEOUT) e tenta de novo, sem limite de tentativas; o cliente genai é criado com um timeout explícito (teste).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 18 tests OK em 0.09 s, commit 975a58f; cobre: test_gerar_json_timeout_rede (ReadTimeout -> espera de 180 s; Client criado com HttpOptions timeout=120000)"
+        }
+      ]
+    },
+    {
+      "criterion": "Erros permanentes continuam falhando na hora: um código que não é temporário (ex.: 400, 401, 403) é relançado sem nova tentativa, e uma resposta com JSON inválido ou reprovada pelo validador continua limitada a 5 tentativas (teste).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 18 tests OK em 0.09 s, commit 975a58f; cobre: test_gerar_json_erros_fatais_e_invalidos (400 relançado sem sleep; JSON inválido para após 5)"
+        }
+      ]
+    },
+    {
+      "criterion": "Sem perda de histórico durante esperas longas: Given uma tarefa (manhã ou noite) fica esperando o Gemini enquanto outra grava no historico_bitcoin.json When a primeira termina Then ela relê o histórico logo antes de alterar e salvar, e a entrada gravada pela outra tarefa é preservada; a noite avalia a mesma entrada que selecionou no início (mesma data e preco_8h) e continua usando o preço capturado antes de chamar o Gemini (teste que simula a gravação concorrente).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 18 tests OK em 0.09 s, commit 975a58f; cobre: test_concorrencia_noite; test_concorrencia_manha"
+        }
+      ]
+    },
+    {
+      "criterion": "`python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede e sem esperas reais (time.sleep simulado); requirements.txt sem dependências novas.",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 18 tests OK em 0.09 s, commit 975a58f; cobre: suíte inteira sem rede (mercado e notícias simulados)"
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m py_compile robot_bitcoin.py",
+          "exit_code": 0
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "git diff --quiet c08a04b HEAD -- requirements.txt",
+          "exit_code": 0
+        }
+      ]
+    }
+  ]
+}
