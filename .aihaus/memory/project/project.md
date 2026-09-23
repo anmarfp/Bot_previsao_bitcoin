@@ -17,7 +17,8 @@
 
 ## Out of scope
 
-- Unresolved: no repository document states what is out of scope. For example, it is not stated whether trading, multiple assets or multiple chats are excluded. Ask the owner.
+- Unresolved: no repository document states what is out of scope. For example, it is not stated whether multiple assets or multiple chats are excluded. Ask the owner.
+- Accepted direction: the current phase prepares the prediction. Later, Gemini is meant to buy and sell automatically based on it. Owner statement: Marco, 2026-09-22. Automated trading is not implemented. It will be a production action that needs explicit approval, an exchange API key without withdrawal permission, per-trade limits, a kill switch and a paper-trading period first (contracts/ops-safety.md). The backtest shows that about 57% accuracy is needed to break even at a 0.1% fee per side (knowledge.md).
 
 ## Definition of Done
 
