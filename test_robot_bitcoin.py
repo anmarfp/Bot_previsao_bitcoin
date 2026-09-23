@@ -595,5 +595,77 @@ class TestRobotBitcoin(unittest.TestCase):
         # Nova entrada foi inserida?
         self.assertEqual(hist[1]["data"], "2026-09-24")
 
+    @patch('robot_bitcoin.pedir')
+    def test_obter_preco_bitcoin_coingecko_ok(self, mock_pedir):
+        class MockResponse:
+            def json(self): return {"bitcoin": {"usd": 60000.0}}
+        mock_pedir.return_value = MockResponse()
+        
+        preco = robot_bitcoin.obter_preco_bitcoin()
+        
+        self.assertEqual(preco, 60000.0)
+        mock_pedir.assert_called_once_with("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+
+    @patch('robot_bitcoin.pedir')
+    def test_obter_preco_bitcoin_coingecko_falha_binance_ok(self, mock_pedir):
+        class MockResponseBinance:
+            def json(self): return {"price": "61000.0"}
+            
+        mock_pedir.side_effect = [None, MockResponseBinance()]
+        
+        preco = robot_bitcoin.obter_preco_bitcoin()
+        
+        self.assertEqual(preco, 61000.0)
+        self.assertEqual(mock_pedir.call_count, 2)
+        self.assertEqual(mock_pedir.call_args_list[0][0][0], "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+        self.assertEqual(mock_pedir.call_args_list[1][0][0], "https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT")
+
+    @patch('robot_bitcoin.pedir')
+    def test_obter_preco_bitcoin_coingecko_json_invalido_binance_ok(self, mock_pedir):
+        class MockResponseCoinGeckoInvalido:
+            def json(self): return {"erro": "limite"}
+            
+        class MockResponseBinance:
+            def json(self): return {"price": "61000.0"}
+            
+        mock_pedir.side_effect = [MockResponseCoinGeckoInvalido(), MockResponseBinance()]
+        
+        preco = robot_bitcoin.obter_preco_bitcoin()
+        self.assertEqual(preco, 61000.0)
+
+    @patch('robot_bitcoin.pedir')
+    def test_obter_preco_bitcoin_ambos_falham(self, mock_pedir):
+        mock_pedir.side_effect = [None, None]
+        preco = robot_bitcoin.obter_preco_bitcoin()
+        self.assertIsNone(preco)
+
+    @patch('robot_bitcoin.pedir')
+    @patch('robot_bitcoin.gerar_json')
+    @patch('robot_bitcoin.agora')
+    @patch('robot_bitcoin.enviar_telegram')
+    def test_verificacao_noite_coingecko_falha_binance_ok(self, mock_enviar, mock_agora, mock_gerar_json, mock_pedir):
+        mock_agora.return_value = datetime.datetime(2026, 9, 23, 22, 0, tzinfo=robot_bitcoin.FUSO_BRT)
+        
+        entrada_nova = {
+            "data": "2026-09-23",
+            "preco_8h": 10000.0,
+            "direcao": "SUBIR"
+        }
+        with open("historico_bitcoin.json", "w") as f:
+            json.dump([entrada_nova], f)
+            
+        class MockResponseBinance:
+            def json(self): return {"price": "11000.0"}
+            
+        # Simula Coingecko falhando e Binance respondendo (quando obter_preco_bitcoin for chamado)
+        mock_pedir.side_effect = [None, MockResponseBinance()]
+        mock_gerar_json.return_value = {"aprendizado": "x"}
+        
+        robot_bitcoin.verificacao_noite()
+        
+        hist = robot_bitcoin.manipular_historico("ler")
+        self.assertEqual(hist[-1]["resultado"], "✅ ACERTOU")
+        self.assertEqual(hist[-1]["preco_noite"], 11000.0)
+
 if __name__ == '__main__':
     unittest.main()
