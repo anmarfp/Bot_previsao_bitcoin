@@ -12,6 +12,7 @@ import httpx
 import requests
 from google import genai
 from google.genai import errors as genai_errors
+from google.genai import types
 
 
 def carregar_env():
@@ -40,6 +41,11 @@ FUSO_BRT = datetime.timezone(datetime.timedelta(hours=-3))
 
 # Códigos HTTP do Gemini que valem nova tentativa (limite de uso / servidor ocupado)
 CODIGOS_TEMPORARIOS = (429, 500, 502, 503, 504)
+
+# Indisponibilidade e timeout do Gemini não desistem: tenta até conseguir, com estas esperas
+ESPERA_MAXIMA = 300  # teto (s) da espera crescente entre tentativas
+ESPERA_TIMEOUT = 180  # espera (s) depois de um timeout
+TIMEOUT_GEMINI_MS = 120_000  # timeout de cada requisição ao Gemini
 
 CABECALHOS = {"User-Agent": "Mozilla/5.0 (bot-previsao-bitcoin)"}
 
@@ -400,8 +406,10 @@ def extrair_json(texto):
 
 def gerar_json(prompt, config, validar, max_tentativas=5):
     """Chama o Gemini com novas tentativas em erros temporários ou respostas inválidas"""
-    client = genai.Client()
-    for tentativa in range(1, max_tentativas + 1):
+    client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_GEMINI_MS))
+    tentativa_invalida = 0
+    tentativa_temp = 0
+    while True:
         try:
             response = client.models.generate_content(
                 model=MODELO_GEMINI,
@@ -412,23 +420,29 @@ def gerar_json(prompt, config, validar, max_tentativas=5):
             validar(dados)
             return dados
         except genai_errors.APIError as e:
-            if e.code not in CODIGOS_TEMPORARIOS or tentativa == max_tentativas:
+            if e.code not in CODIGOS_TEMPORARIOS:
                 raise
-            espera = 20 * tentativa
-            print(f"Gemini indisponível ({e.code}). A aguardar {espera}s... (Tentativa {tentativa}/{max_tentativas})")
+            tentativa_temp += 1
+            espera = min(20 * tentativa_temp, ESPERA_MAXIMA)
+            print(f"Gemini indisponível ({e.code}). A aguardar {espera}s... (Tentativa {tentativa_temp})")
+            time.sleep(espera)
+        except httpx.TimeoutException as e:
+            tentativa_temp += 1
+            espera = ESPERA_TIMEOUT
+            print(f"Falha de rede com o Gemini ({type(e).__name__}). A aguardar {espera}s... (Tentativa {tentativa_temp})")
             time.sleep(espera)
         except httpx.TransportError as e:
-            # Falhas de rede (ligação recusada/cortada, timeout) também são temporárias
-            if tentativa == max_tentativas:
-                raise
-            espera = 20 * tentativa
-            print(f"Falha de rede com o Gemini ({type(e).__name__}). A aguardar {espera}s... (Tentativa {tentativa}/{max_tentativas})")
+            # Falhas de rede (ligação recusada/cortada) também são temporárias
+            tentativa_temp += 1
+            espera = min(20 * tentativa_temp, ESPERA_MAXIMA)
+            print(f"Falha de rede com o Gemini ({type(e).__name__}). A aguardar {espera}s... (Tentativa {tentativa_temp})")
             time.sleep(espera)
         except (ValueError, KeyError) as e:
             # json.JSONDecodeError é subclasse de ValueError
-            if tentativa == max_tentativas:
+            tentativa_invalida += 1
+            if tentativa_invalida >= max_tentativas:
                 raise
-            print(f"Resposta inválida do Gemini: {e}. A tentar de novo... (Tentativa {tentativa}/{max_tentativas})")
+            print(f"Resposta inválida do Gemini: {e}. A tentar de novo... (Tentativa {tentativa_invalida}/{max_tentativas})")
             time.sleep(5)
 
 
@@ -646,6 +660,7 @@ def previsao_manha():
         "indicadores": {k: round(v, 2) if v is not None else None for k, v in indicadores.items()}
     }
     
+    historico = manipular_historico("ler")
     # Se a previsão de hoje já existe e ainda não foi avaliada (ex.: execução repetida), substitui-a
     if historico and historico[-1].get("data") == hoje and "resultado" not in historico[-1]:
         historico[-1] = nova_entrada
@@ -756,9 +771,30 @@ def verificacao_noite():
 
     dados = gerar_json(prompt, {"response_mime_type": "application/json"}, validar_aprendizado)
 
-    hoje["preco_noite"] = preco_atual
-    hoje["resultado"] = status
-    hoje["aprendizado"] = dados["aprendizado"]
+    historico = manipular_historico("ler")
+    # Relê o histórico: a espera pelo Gemini pode ter durado horas e outra tarefa pode tê-lo gravado
+    entrada_encontrada = None
+    for h in reversed(historico):
+        if h.get("data") == hoje["data"] and h.get("preco_8h") == hoje["preco_8h"]:
+            entrada_encontrada = h
+            break
+            
+    if not entrada_encontrada:
+        print("Entrada original não encontrada no histórico após gerar JSON. Abortando.")
+        return
+        
+    if "resultado" in entrada_encontrada:
+        print("Entrada já avaliada enquanto gerava JSON. Abortando.")
+        return
+
+    entrada_encontrada["preco_noite"] = preco_atual
+    entrada_encontrada["resultado"] = status
+    if brier is not None:
+        entrada_encontrada["brier"] = round(brier, 4)
+    if "resultados_baselines" in hoje:
+        entrada_encontrada["resultados_baselines"] = hoje["resultados_baselines"]
+    entrada_encontrada["variacao_pct"] = variacao_pct
+    entrada_encontrada["aprendizado"] = dados["aprendizado"]
     manipular_historico("salvar", historico)
 
     avaliados = [h for h in historico if h.get("resultado") in ("✅ ACERTOU", "❌ ERROU")]
