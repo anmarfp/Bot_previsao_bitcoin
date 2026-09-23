@@ -20,7 +20,8 @@
   3. `scp` the file to `robot_bitcoin.py.new`, then in one ssh command with `set -e`, in order: abort if `pgrep -af "[p]ython robot_bitcoin[.]py"` finds a running task; abort unless the hashes of `.new` and of the active file are the expected ones; `cp -p robot_bitcoin.py robot_bitcoin.py.bak-<date>-<old commit>`; `mv -f robot_bitcoin.py.new robot_bitcoin.py`; `py_compile` plus a plain `import robot_bitcoin`.
   4. Confirm that the `historico_bitcoin.json` hash did not change.
 - Verified gotcha: `pgrep -f robot_bitcoin.py`, and even `[r]obot_bitcoin.py`, matches the ssh command itself whenever that command mentions the file anywhere. Match the cron command line `[p]ython robot_bitcoin[.]py` instead.
-- Verified: after the 2026-09-22 23:30 deploy the server runs `robot_bitcoin.py` sha256 `1ad3e9c326fc3f7f…` (Git 72508a4). The previous version is `robot_bitcoin.py.bak-20260923-e0bb956` (sha256 `f0940b1d96775278…`).
+- Superseded — Verified: after the 2026-09-22 23:30 deploy the server runs `robot_bitcoin.py` sha256 `1ad3e9c326fc3f7f…` (Git 72508a4). The previous version is `robot_bitcoin.py.bak-20260923-e0bb956` (sha256 `f0940b1d96775278…`).
+- Verified: since the 2026-09-22 23:57 BRT deploy (same procedure; owner approval: "prossiga com a tratativa dos dois pontos abertos"), the server runs `robot_bitcoin.py` sha256 `b9c9a6f44a62bb7e…` (Git 6fd75c7). Backups: `robot_bitcoin.py.bak-20260923-72508a4` (the previous version) and `robot_bitcoin.py.bak-20260923-e0bb956` (the original). The first real run on the new code (00:00 `preco` on 2026-09-23) logged "✅ Mensagem entregue ao Telegram com sucesso!". The first `manha` in the new format is due at 08:00 on 2026-09-23.
 
 ## Smoke checks
 
@@ -28,7 +29,7 @@
 
 ## Rollback
 
-- Verified procedure (backup confirmed present on 2026-09-22, not executed): `ssh oracle-bot 'cd ~/bot_bitcoin && cp -p robot_bitcoin.py.bak-20260923-e0bb956 robot_bitcoin.py'`. The state files are not touched. Older entries in history keep working with the old code, because the new fields are only additions.
+- Verified procedure (backup confirmed present on 2026-09-22, not executed): `ssh oracle-bot 'cd ~/bot_bitcoin && cp -p robot_bitcoin.py.bak-20260923-72508a4 robot_bitcoin.py'` (one step back; use `.bak-20260923-e0bb956` for the original version). The state files are not touched. Older entries in history keep working with the old code, because the new fields are only additions.
 - Historical: before a backup existed, the rollback candidate was copying the previous `robot_bitcoin.py` from Git history back with `scp`.
 
 ## Approval policy
