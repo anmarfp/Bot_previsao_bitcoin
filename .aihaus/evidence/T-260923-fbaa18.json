@@ -1,0 +1,155 @@
+{
+  "schema": "aihaus.evidence.v1",
+  "task": "T-260923-fbaa18-previsao-probabilistica-com-faixa-neutra-baselin",
+  "commit": "5e3ba4a",
+  "verdict": "PASS",
+  "review": "Revisão adversarial independente (ship-with-changes). Achados médios 1-3 e baixos 4, 5 e 7 corrigidos; o 6 (preco_8h = 0) já existia antes e ficou fora do escopo.",
+  "acceptance": [
+    {
+      "criterion": "Faixa neutra: Given preço da manhã e da noite When |variação| < 0,3% Then resultado \"⚪ SEM VARIAÇÃO\" e fora do placar; |variação| >= 0,3% conta como SUBIR/CAIR (teste unitário).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_classificar_movimento_limites; test_verificacao_noite_faixa_neutra"
+        }
+      ]
+    },
+    {
+      "criterion": "Probabilidade: o schema exige `probabilidade_subir` inteiro 0–100 coerente com a direção (>50 exige SUBIR, <50 exige CAIR, 50 aceita ambas); resposta incoerente ou fora do intervalo gera nova tentativa (teste unitário).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_validar_previsao_probabilidade"
+        }
+      ]
+    },
+    {
+      "criterion": "Amostragem: a manhã pede 3 amostras ao Gemini, usa a média das probabilidades, direção SUBIR se média > 50, CAIR se < 50 e, no empate, a maioria das amostras (persistindo o empate, a primeira); segue se pelo menos 1 amostra for válida e falha se nenhuma for (teste unitário com Gemini simulado).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_agregar_amostras; test_previsao_manha_pont_a_ponta; test_previsao_manha_todas_falham"
+        }
+      ]
+    },
+    {
+      "criterion": "Sem convicção: Given probabilidade final entre 45 e 55 inclusive When a mensagem da manhã é montada Then mostra a direção, a probabilidade dessa direção e o aviso \"sem convicção\"; a previsão continua contando no placar (teste unitário).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_agregar_amostras; test_previsao_manha_pont_a_ponta; test_previsao_manha_cair"
+        }
+      ]
+    },
+    {
+      "criterion": "Mensagem da manhã mostra a probabilidade da direção prevista (ex.: \"CAIR (62%)\") (teste unitário).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_previsao_manha_pont_a_ponta; test_previsao_manha_cair"
+        }
+      ]
+    },
+    {
+      "criterion": "Histórico: a nova entrada guarda probabilidade_subir, sem_conviccao, justificativa, baselines e um resumo dos indicadores; entradas antigas sem esses campos continuam lidas, avaliadas e contadas sem erro (teste unitário com o histórico atual do servidor).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_previsao_manha_pont_a_ponta; test_verificacao_noite_historico_antigo; test_verificacao_noite_entrada_antiga"
+        }
+      ]
+    },
+    {
+      "criterion": "Noite: salva variacao_pct, brier (só fora da faixa neutra) e o resultado de cada baseline; o prompt do aprendizado recebe justificativa, probabilidade e variação real; a mensagem mostra o placar do Gemini, o Brier médio e o placar das baselines nos mesmos dias (teste unitário).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_verificacao_noite_historico_antigo; test_verificacao_noite_brier_medio; test_verificacao_noite_faixa_neutra"
+        }
+      ]
+    },
+    {
+      "criterion": "Manhã: o prompt inclui indicadores de velas horárias (retornos 1/4/8/24/72h, RSI14, volatilidade 24h, posição na faixa 24h), derivativos (funding, variação do open interest 24h, long/short) e as últimas 10 previsões avaliadas; se velas ou derivativos falharem, a previsão segue com \"n/d\" (teste unitário).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK em 5e3ba4a; cobre: test_previsao_manha_pont_a_ponta; test_previsao_manha_cair; test_obter_velas_e_derivativos; test_obter_velas_descarta_vela_em_curso; test_calcular_indicadores_rsi"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "python scratchpad/dry/dry.py (manhã com dados reais; Gemini e Telegram simulados)",
+          "exit_code": 0,
+          "detail": "O prompt real traz retornos, RSI, volatilidade, funding +0.0038%, open interest, long/short e o histórico"
+        }
+      ]
+    },
+    {
+      "criterion": "`python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede nem Telegram; requirements.txt sem dependências novas.",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m py_compile robot_bitcoin.py",
+          "exit_code": 0
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 13 tests OK"
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "git diff --quiet 000d579 5e3ba4a -- requirements.txt",
+          "exit_code": 0,
+          "detail": "requirements.txt sem alteração"
+        }
+      ]
+    }
+  ]
+}
