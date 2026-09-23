@@ -35,6 +35,7 @@
 
 ## External dependencies
 
+- Verified: Binance public data (`data-api.binance.vision` klines and `ticker/price`, which is also the price fallback when CoinGecko fails) and Binance futures (`fapi.binance.com`) are used as well. Source: `robot_bitcoin.py` (reviewed 8f76970).
 - Verified: CoinGecko public API (`/simple/price`, `/coins/markets`), alternative.me Fear & Greed API, RSS feeds from Google News (two queries), CoinDesk, Cointelegraph and Decrypt, the Google Gemini API through `google-genai`, and the Telegram Bot API `sendMessage`. Source: `robot_bitcoin.py` (reviewed e0bb956).
 
 Describe topology and access expectations. Never store credentials or secret

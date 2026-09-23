@@ -10,10 +10,10 @@ Preço da noite: Binance quando o CoinGecko falhar. Quando o CoinGecko estiver i
 
 ## Acceptance
 
-- [ ] Given o CoinGecko responde normalmente When obter_preco_bitcoin é chamado Then devolve o preço do CoinGecko e a Binance não é consultada (teste).
-- [ ] Given o CoinGecko falha (sem resposta após as tentativas do pedir, ou resposta sem o preço) When obter_preco_bitcoin é chamado Then devolve o preço de `data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT` e registra no log que usou a Binance; se as duas fontes falharem, devolve None como hoje (teste).
-- [ ] Given o CoinGecko está fora às 22h When verificacao_noite roda Then a previsão é avaliada com o preço da Binance, em vez de levantar "Não foi possível obter o preço do BTC no CoinGecko" (teste de regressão que falha no código anterior).
-- [ ] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede e sem esperas reais; requirements.txt sem dependências novas.
+- [x] Given o CoinGecko responde normalmente When obter_preco_bitcoin é chamado Then devolve o preço do CoinGecko e a Binance não é consultada (teste).
+- [x] Given o CoinGecko falha (sem resposta após as tentativas do pedir, ou resposta sem o preço) When obter_preco_bitcoin é chamado Then devolve o preço de `data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT` e registra no log que usou a Binance; se as duas fontes falharem, devolve None como hoje (teste).
+- [x] Given o CoinGecko está fora às 22h When verificacao_noite roda Then a previsão é avaliada com o preço da Binance, em vez de levantar "Não foi possível obter o preço do BTC no CoinGecko" (teste de regressão que falha no código anterior).
+- [x] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede e sem esperas reais; requirements.txt sem dependências novas.
 
 ## Context
 
@@ -35,4 +35,8 @@ Preço da noite: Binance quando o CoinGecko falhar. Quando o CoinGecko estiver i
 
 - 2026-09-23: tarefa criada pelo orquestrador. Delegada ao Antigravity (agy) na worktree `../Bot_previsao_bitcoin-wt/preco-fallback`, branch `fix/preco-fallback-binance`.
 
+- 2026-09-23: a entrega do agy (8f76970) foi aceita na primeira rodada. A revisão confirmou que os 23 testes definidos são os 23 que rodam (0,12 s) e que os testes novos falham no código anterior.
+
 ## Evidence
+
+Artifact: .aihaus/evidence/T-260923-c8efd6.json
