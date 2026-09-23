@@ -13,6 +13,7 @@
 - Accepted: to update the bot, copy only `robot_bitcoin.py` to the server with `scp` and then check `logs/bot.log`. The server does not `git pull`. Owner-confirmed on 2026-09-22 from earlier session notes; not re-verified on the server in this session.
 - Accepted: after changing the server time zone, restart cron with `sudo systemctl restart cron`. On 2026-09-22 this was skipped: the clock moved back 3h, cron suspended the fixed-time jobs, and the 20:00 update was missed. Owner-confirmed on 2026-09-22 from earlier session notes; not re-verified on the server in this session.
 - Verified: rerunning `manha` on the same day replaces today's unevaluated prediction. Rerunning `noite` after an evaluation is a no-op. Source: `robot_bitcoin.py` (reviewed e0bb956).
+- Verified: to measure prediction quality offline (no Telegram, no Gemini), run `python backtest.py mercado [--dias N] [--taxa 0.1]` (public Binance candles, about 30 s for 3 years) or `python backtest.py historico CAMINHO.json` on a copy of the server history, which you can read without changing anything using `ssh oracle-bot 'cat ~/bot_bitcoin/historico_bitcoin.json' > copia.json`. The "MESMOS DIAS" section is the fair comparison between Gemini and the baselines. Both modes exit with 0, or with 1 on error. Source: `backtest.py` (reviewed 15f3a71).
 - Unresolved: no documented procedure exists for editing or repairing the server's `historico_bitcoin.json` or `ultimo_preco.txt`, or for stopping the bot.
 
 Add repeatable, verified procedures with prerequisites, rollback, and stop
