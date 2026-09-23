@@ -1,0 +1,97 @@
+{
+  "schema": "aihaus.evidence.v1",
+  "task": "T-260923-1a9727-backtest-offline-com-operacao-simulada",
+  "commit": "15f3a71",
+  "verdict": "PASS",
+  "review": "A rodada 1 foi rejeitada (comparação em dias diferentes, falha silenciosa na paginação, testes insuficientes). A rodada 2 corrigiu. Ressalva: o acumulado do teste (a) é recalculado no próprio teste, e não há o caso de vendido perdendo numa alta; o sinal do vendido está coberto pelo caso de queda.",
+  "acceptance": [
+    {
+      "criterion": "Modo mercado: `python backtest.py mercado [--dias N]` baixa velas horárias BTCUSDT paginadas, simula a janela 11:00 UTC → 01:00 UTC do dia seguinte e, usando calcular_indicadores, calcular_baselines e classificar_movimento do bot, imprime o total de dias, a % de dias neutros, a % de altas e o acerto com n e IC95 de cada regra (baselines e regras de indicador), sem contar dias neutros nem dias sem sinal (testes com velas sintéticas).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest test_backtest test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 23 tests OK (15f3a71); cobre test_processar_mercado_janela_e_sem_sinal e test_baixar_velas_paginacao_e_falha"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe backtest.py mercado --dias 1095",
+          "exit_code": 0,
+          "detail": "1097 dias, 19,5% neutros; momentum_8h 52,9% (n=883, ±3,3pp)"
+        }
+      ]
+    },
+    {
+      "criterion": "Modo historico: `python backtest.py historico CAMINHO.json` mostra o placar do Gemini com IC95, o Brier médio comparado a 0,25, o acerto por faixa de confiança (50-55, 55-65, 65+ e n/d) e o placar das baselines nos mesmos dias; entradas antigas sem campos novos não quebram (testes).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest test_backtest test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "test_processar_historico_mesmos_dias_e_filtros (histórico antigo real + entradas novas; MESMOS DIAS n=3)"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe backtest.py historico <cópia somente leitura do historico_bitcoin.json do servidor>",
+          "exit_code": 0,
+          "detail": "Histórico real de produção: Gemini (todas) 50,0% n=2; MESMOS DIAS n=0 (ainda não há entradas novas)"
+        }
+      ]
+    },
+    {
+      "criterion": "Operação simulada: nos dois modos, cada regra (e o Gemini no modo historico) é simulada operando comprado em SUBIR e vendido em CAIR, com o retorno real menos 2 × taxa (`--taxa`, padrão 0,1% por lado), e são mostrados o retorno médio, o acumulado composto, o max drawdown e o acerto de equilíbrio; no modo historico também operando só com probabilidade da direção >= 55% (testes com números conhecidos).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest test_backtest test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "test_calc_drawdown_e_operacao_simulada_numeros_exatos, test_acerto_de_equilibrio (60,0%), test_processar_historico_mesmos_dias_e_filtros (vendido na queda +1,80%; filtro >= 55% +3,63%)"
+        }
+      ]
+    },
+    {
+      "criterion": "`python -m py_compile backtest.py` e `python -m unittest -v test_backtest test_robot_bitcoin` passam sem rede; `python backtest.py mercado --dias 365` roda com a rede pública da Binance e sai com código 0; requirements.txt sem dependências novas.",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m py_compile backtest.py",
+          "exit_code": 0
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest test_backtest test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 23 tests OK sem rede"
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe backtest.py mercado --dias 1095",
+          "exit_code": 0
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "git diff --quiet origin/main HEAD -- requirements.txt",
+          "exit_code": 0
+        }
+      ]
+    }
+  ]
+}
