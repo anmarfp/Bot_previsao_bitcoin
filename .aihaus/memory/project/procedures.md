@@ -2,7 +2,7 @@
 
 ## Development closeout
 
-1. Run affected checks. Verified: the repository has no automated tests or linter. The only check verified locally is `python -m py_compile robot_bitcoin.py` (a syntax check, exit 0 on 2026-09-22). Source: `robot_bitcoin.py` (reviewed e0bb956).
+1. Run affected checks. Verified: `python -m py_compile robot_bitcoin.py` and `python -m unittest -v test_robot_bitcoin` (13 tests with no network or Telegram, about 0.1 s) both exited 0 on 2026-09-23. In a worktree without its own `.venv`, use the main checkout's interpreter `C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe`. There is no linter. Source: `test_robot_bitcoin.py` (reviewed 5e3ba4a).
 2. Run broader repository checks required by the Definition of Done. Unresolved: no Definition of Done is documented (see project.md).
 3. Record commands, exit codes, and degraded checks.
 4. Review the diff and update durable memory only when warranted.
