@@ -262,13 +262,23 @@ def pedir(url, tentativas=3):
 
 
 def obter_preco_bitcoin():
-    """Procura o preço atual do BTC através da API pública do CoinGecko"""
+    """Procura o preço atual do BTC através da API do CoinGecko (com fallback para a Binance)."""
     response = pedir("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
-    try:
-        return float(response.json()["bitcoin"]["usd"]) if response else None
-    except (ValueError, KeyError) as e:
-        print(f"Resposta inesperada do CoinGecko: {e}")
-        return None
+    if response:
+        try:
+            return float(response.json()["bitcoin"]["usd"])
+        except (ValueError, KeyError) as e:
+            print(f"Resposta inesperada do CoinGecko: {e}")
+            
+    print("Usando Binance porque o CoinGecko falhou.")
+    response_binance = pedir("https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT")
+    if response_binance:
+        try:
+            return float(response_binance.json()["price"])
+        except (ValueError, KeyError) as e:
+            print(f"Resposta inesperada da Binance: {e}")
+            
+    return None
 
 
 def obter_mercado():
@@ -712,7 +722,7 @@ def verificacao_noite():
 
     preco_atual = obter_preco_bitcoin()
     if not preco_atual:
-        raise RuntimeError("Não foi possível obter o preço do BTC no CoinGecko")
+        raise RuntimeError("Não foi possível obter o preço do BTC (CoinGecko e Binance)")
 
     preco_manha = hoje["preco_8h"]
     direcao_prevista = hoje["direcao"]
