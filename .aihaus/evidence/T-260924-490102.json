@@ -1,0 +1,110 @@
+{
+  "schema": "aihaus.evidence.v1",
+  "task": "T-260924-490102-gemini-sem-cota-trocar-de-modelo-em-vez-de-esper",
+  "commit": "76250d9",
+  "verdict": "PASS",
+  "review": "Revisão do orquestrador. A regressão do agy só falhava no setUp (atributo ausente); o comportamento foi provado à parte. Ajustes: 'PerDay' só com 429; 404 (modelo retirado) também pula o modelo; dois comentários removidos foram restaurados; novo teste de 404 e de 429 por minuto.",
+  "acceptance": [
+    {
+      "criterion": "Given o modelo atual responde 429 de cota DIÁRIA (quotaId com \"PerDay\") When gerar_json é chamado Then o modelo é marcado como esgotado para o resto do processo e a próxima tentativa usa o próximo modelo da lista imediatamente, sem espera; chamadas seguintes no mesmo processo (as outras amostras e a noite) já começam pelo primeiro modelo não esgotado (teste de regressão que falha no código anterior).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 27 tests OK em 76250d9; cobre: test_gerar_json_regressao_429_diario; test_gerar_json_404_e_429_por_minuto"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe prova.py (gerar_json de 699a5a6 contra 76250d9, 429 diário e depois sucesso)",
+          "exit_code": 0,
+          "detail": "Antigo: modelos chamados ['gemini-3.8-flash', 'gemini-3.8-flash'], esperas [20]. Novo: ['gemini-3.8-flash', 'gemini-3.7-flash'], esperas []."
+        }
+      ]
+    },
+    {
+      "criterion": "Given o modelo atual falha com erro temporário (429 por minuto, 5xx, rede ou timeout) FALHAS_ANTES_DE_TROCAR vezes seguidas When gerar_json continua tentando Then passa para o próximo modelo, mantendo a espera crescente limitada a ESPERA_MAXIMA (e ESPERA_TIMEOUT após timeout), e percorre a lista em ciclo, sem limite de tentativas (teste).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 27 tests OK em 76250d9; cobre: test_gerar_json_503_frequente; test_gerar_json_timeout_rede"
+        }
+      ]
+    },
+    {
+      "criterion": "Given todos os modelos estão com a cota diária esgotada When gerar_json continua tentando Then espera ESPERA_COTA, limpa a marcação e recomeça pelo primeiro modelo, sem desistir (teste).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 27 tests OK em 76250d9; cobre: teste de todos os modelos esgotados (ESPERA_COTA e recomeço)"
+        }
+      ]
+    },
+    {
+      "criterion": "A lista vem de GEMINI_MODELOS (separada por vírgula) ou, por padrão, [GEMINI_MODEL ou gemini-3.8-flash, gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash], sem repetições; a entrada da manhã guarda \"modelos\" (o modelo de cada amostra válida) e o log registra o modelo em cada falha e na troca (teste).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 27 tests OK em 76250d9; cobre: teste de montar_modelos; teste de previsao_manha gravando 'modelos'"
+        }
+      ]
+    },
+    {
+      "criterion": "A saída do bot é gravada linha a linha no log (stdout com line_buffering no início da execução), para o log mostrar as tentativas enquanto a tarefa ainda roda.",
+      "status": "satisfied",
+      "executable": false,
+      "evidence": [
+        {
+          "rung": "written",
+          "artifact": "robot_bitcoin.py @ 76250d9 (bloco __main__: sys.stdout.reconfigure(line_buffering=True))",
+          "detail": "Revisado pelo orquestrador; o comportamento aparece no log de produção durante a execução do teste manual pós-deploy."
+        }
+      ]
+    },
+    {
+      "criterion": "`python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede e sem esperas reais; requirements.txt sem dependências novas.",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 27 tests OK em 76250d9; cobre: suíte inteira (27 testes, 0,17 s, sem rede)"
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m py_compile robot_bitcoin.py",
+          "exit_code": 0
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "git diff --quiet 699a5a6 HEAD -- requirements.txt",
+          "exit_code": 0
+        }
+      ]
+    }
+  ]
+}

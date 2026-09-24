@@ -34,6 +34,24 @@ carregar_env()
 HISTORICO_FILE = "historico_bitcoin.json"
 FICHEIRO_MEMORIA = "ultimo_preco.txt"
 MODELO_GEMINI = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+
+
+def montar_modelos(valor_env, principal):
+    """Monta a lista de modelos sem repetições, mantendo o principal no início."""
+    modelos = [principal]
+    extras = [m.strip() for m in valor_env.split(",")] if valor_env is not None else ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
+    for m in extras:
+        if m and m not in modelos:
+            modelos.append(m)
+    return modelos
+
+
+# O plano gratuito tem cota diária por modelo: quando um esgota ou está sobrecarregado, passa ao seguinte
+MODELOS_GEMINI = montar_modelos(os.getenv("GEMINI_MODELOS"), MODELO_GEMINI)
+FALHAS_ANTES_DE_TROCAR = 2  # falhas temporárias seguidas no mesmo modelo antes de trocar
+ESPERA_COTA = 1800  # espera (s) quando todos os modelos esgotam a cota diária
+MODELOS_ESGOTADOS = set()  # modelos sem cota (ou retirados) nesta execução
+
 FAIXA_NEUTRA = 0.003
 
 # Horário de Brasília (sem horário de verão desde 2019), independente do fuso do servidor
@@ -419,40 +437,81 @@ def gerar_json(prompt, config, validar, max_tentativas=5):
     client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_GEMINI_MS))
     tentativa_invalida = 0
     tentativa_temp = 0
+    falhas_modelo = 0
+
+    modelos_disponiveis = [m for m in MODELOS_GEMINI if m not in MODELOS_ESGOTADOS]
+    if not modelos_disponiveis:
+        print(f"Todos os modelos esgotados. A aguardar {ESPERA_COTA}s...")
+        time.sleep(ESPERA_COTA)
+        MODELOS_ESGOTADOS.clear()
+        modelos_disponiveis = MODELOS_GEMINI.copy()
+    idx_modelo = 0
+
     while True:
+        modelo_atual = modelos_disponiveis[idx_modelo]
         try:
             response = client.models.generate_content(
-                model=MODELO_GEMINI,
+                model=modelo_atual,
                 contents=prompt,
                 config=config,
             )
             dados = extrair_json(response.text)
             validar(dados)
+            dados["modelo"] = modelo_atual
             return dados
         except genai_errors.APIError as e:
+            # Cota diária esgotada (o plano gratuito tem cota por modelo) ou modelo retirado: esperar não adianta
+            if (e.code == 429 and "PerDay" in str(e)) or e.code == 404:
+                MODELOS_ESGOTADOS.add(modelo_atual)
+                motivo = "Cota diária esgotada" if e.code == 429 else "Modelo não encontrado (404)"
+                print(f"{motivo} no modelo {modelo_atual}.")
+                modelos_disponiveis = [m for m in MODELOS_GEMINI if m not in MODELOS_ESGOTADOS]
+                if not modelos_disponiveis:
+                    print(f"Todos os modelos esgotados. A aguardar {ESPERA_COTA}s...")
+                    time.sleep(ESPERA_COTA)
+                    MODELOS_ESGOTADOS.clear()
+                    modelos_disponiveis = MODELOS_GEMINI.copy()
+                idx_modelo = 0
+                falhas_modelo = 0
+                continue
             if e.code not in CODIGOS_TEMPORARIOS:
                 raise
             tentativa_temp += 1
+            falhas_modelo += 1
             espera = min(20 * tentativa_temp, ESPERA_MAXIMA)
-            print(f"Gemini indisponível ({e.code}). A aguardar {espera}s... (Tentativa {tentativa_temp})")
+            print(f"Gemini indisponível ({e.code}) no modelo {modelo_atual}. A aguardar {espera}s... (Tentativa {tentativa_temp})")
+            if falhas_modelo >= FALHAS_ANTES_DE_TROCAR:
+                idx_modelo = (idx_modelo + 1) % len(modelos_disponiveis)
+                falhas_modelo = 0
+                print(f"Trocando para o modelo {modelos_disponiveis[idx_modelo]}.")
             time.sleep(espera)
         except httpx.TimeoutException as e:
             tentativa_temp += 1
+            falhas_modelo += 1
             espera = ESPERA_TIMEOUT
-            print(f"Falha de rede com o Gemini ({type(e).__name__}). A aguardar {espera}s... (Tentativa {tentativa_temp})")
+            print(f"Falha de rede com o Gemini ({type(e).__name__}) no modelo {modelo_atual}. A aguardar {espera}s... (Tentativa {tentativa_temp})")
+            if falhas_modelo >= FALHAS_ANTES_DE_TROCAR:
+                idx_modelo = (idx_modelo + 1) % len(modelos_disponiveis)
+                falhas_modelo = 0
+                print(f"Trocando para o modelo {modelos_disponiveis[idx_modelo]}.")
             time.sleep(espera)
         except httpx.TransportError as e:
             # Falhas de rede (ligação recusada/cortada) também são temporárias
             tentativa_temp += 1
+            falhas_modelo += 1
             espera = min(20 * tentativa_temp, ESPERA_MAXIMA)
-            print(f"Falha de rede com o Gemini ({type(e).__name__}). A aguardar {espera}s... (Tentativa {tentativa_temp})")
+            print(f"Falha de rede com o Gemini ({type(e).__name__}) no modelo {modelo_atual}. A aguardar {espera}s... (Tentativa {tentativa_temp})")
+            if falhas_modelo >= FALHAS_ANTES_DE_TROCAR:
+                idx_modelo = (idx_modelo + 1) % len(modelos_disponiveis)
+                falhas_modelo = 0
+                print(f"Trocando para o modelo {modelos_disponiveis[idx_modelo]}.")
             time.sleep(espera)
         except (ValueError, KeyError) as e:
             # json.JSONDecodeError é subclasse de ValueError
             tentativa_invalida += 1
             if tentativa_invalida >= max_tentativas:
                 raise
-            print(f"Resposta inválida do Gemini: {e}. A tentar de novo... (Tentativa {tentativa_invalida}/{max_tentativas})")
+            print(f"Resposta inválida do Gemini no modelo {modelo_atual}: {e}. A tentar de novo... (Tentativa {tentativa_invalida}/{max_tentativas})")
             time.sleep(5)
 
 
@@ -667,7 +726,8 @@ def previsao_manha():
         "sem_conviccao": resultado_agregado["sem_conviccao"],
         "justificativa": resultado_agregado["justificativa"],
         "baselines": baselines,
-        "indicadores": {k: round(v, 2) if v is not None else None for k, v in indicadores.items()}
+        "indicadores": {k: round(v, 2) if v is not None else None for k, v in indicadores.items()},
+        "modelos": [a.get("modelo") for a in amostras]
     }
     
     historico = manipular_historico("ler")
@@ -846,6 +906,12 @@ def verificacao_noite():
 # ROTEADOR DE COMANDOS
 # ==========================================
 if __name__ == "__main__":
+    try:
+        # o cron redireciona a saída para arquivo, e sem isso o log só aparece quando o processo termina
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass
+
     tarefa = sys.argv[1] if len(sys.argv) > 1 else "preco"
     try:
         if tarefa == "manha":
