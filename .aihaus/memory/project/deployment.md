@@ -21,7 +21,9 @@
   4. Confirm that the `historico_bitcoin.json` hash did not change.
 - Verified gotcha: `pgrep -f robot_bitcoin.py`, and even `[r]obot_bitcoin.py`, matches the ssh command itself whenever that command mentions the file anywhere. Match the cron command line `[p]ython robot_bitcoin[.]py` instead.
 - Superseded — Verified: after the 2026-09-22 23:30 deploy the server runs `robot_bitcoin.py` sha256 `1ad3e9c326fc3f7f…` (Git 72508a4). The previous version is `robot_bitcoin.py.bak-20260923-e0bb956` (sha256 `f0940b1d96775278…`).
-- Verified: since the 2026-09-22 23:57 BRT deploy (same procedure; owner approval: "prossiga com a tratativa dos dois pontos abertos"), the server runs `robot_bitcoin.py` sha256 `b9c9a6f44a62bb7e…` (Git 6fd75c7). Backups: `robot_bitcoin.py.bak-20260923-72508a4` (the previous version) and `robot_bitcoin.py.bak-20260923-e0bb956` (the original). The first real run on the new code (00:00 `preco` on 2026-09-23) logged "✅ Mensagem entregue ao Telegram com sucesso!". The first `manha` in the new format is due at 08:00 on 2026-09-23.
+- Superseded — Verified: since the 2026-09-22 23:57 BRT deploy (same procedure; owner approval: "prossiga com a tratativa dos dois pontos abertos"), the server runs `robot_bitcoin.py` sha256 `b9c9a6f44a62bb7e…` (Git 6fd75c7). Backups: `robot_bitcoin.py.bak-20260923-72508a4` (the previous version) and `robot_bitcoin.py.bak-20260923-e0bb956` (the original). The first real run on the new code (00:00 `preco` on 2026-09-23) logged "✅ Mensagem entregue ao Telegram com sucesso!". The first `manha` in the new format is due at 08:00 on 2026-09-23.
+- Verified: since the 2026-09-24 11:57 BRT deploy (fixes for the missed morning run, requested by the owner), the server runs `robot_bitcoin.py` sha256 `e1970e4fbb8a4504…` (Git ab86f7e: per-model quota fallback + model list across families). Backups: `.bak-20260924-580d41a` (the previous version, 580d41a), `.bak-20260924-6fd75c7`, `.bak-20260923-72508a4` and `.bak-20260923-e0bb956`. The first real run was the manual `manha` at 11:53 on 2026-09-24 (with the extended list through GEMINI_MODELOS), delivered via gemini-2.5-flash.
+- Verified gotcha: a remote `pgrep -f` or `kill` whose pattern appears in the ssh command itself matches the ssh shell and kills the session (exit 255). Put remote operations in a script file (`scp` + `bash /tmp/x.sh`) and start long runs with `setsid nohup <script> < /dev/null > /dev/null 2>&1 &`.
 
 ## Smoke checks
 
@@ -29,7 +31,7 @@
 
 ## Rollback
 
-- Verified procedure (backup confirmed present on 2026-09-22, not executed): `ssh oracle-bot 'cd ~/bot_bitcoin && cp -p robot_bitcoin.py.bak-20260923-72508a4 robot_bitcoin.py'` (one step back; use `.bak-20260923-e0bb956` for the original version). The state files are not touched. Older entries in history keep working with the old code, because the new fields are only additions.
+- Verified procedure (backup confirmed present on 2026-09-22, not executed): `ssh oracle-bot 'cd ~/bot_bitcoin && cp -p robot_bitcoin.py.bak-20260924-580d41a robot_bitcoin.py'` (one step back; the older `.bak-*` files go further back). The state files are not touched. Older entries in history keep working with the old code, because the new fields are only additions.
 - Historical: before a backup existed, the rollback candidate was copying the previous `robot_bitcoin.py` from Git history back with `scp`.
 
 ## Approval policy
