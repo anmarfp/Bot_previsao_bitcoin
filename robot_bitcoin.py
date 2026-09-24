@@ -35,11 +35,15 @@ HISTORICO_FILE = "historico_bitcoin.json"
 FICHEIRO_MEMORIA = "ultimo_preco.txt"
 MODELO_GEMINI = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
+# Alterna famílias: uma sobrecarga da família 3.x não deve bloquear todas as primeiras opções
+MODELOS_PADRAO = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.7-flash", "gemini-3.6-flash",
+                  "gemini-3.5-flash", "gemini-3.5-flash-lite"]
+
 
 def montar_modelos(valor_env, principal):
     """Monta a lista de modelos sem repetições, mantendo o principal no início."""
     modelos = [principal]
-    extras = [m.strip() for m in valor_env.split(",")] if valor_env is not None else ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
+    extras = [m.strip() for m in valor_env.split(",")] if valor_env is not None else MODELOS_PADRAO
     for m in extras:
         if m and m not in modelos:
             modelos.append(m)
