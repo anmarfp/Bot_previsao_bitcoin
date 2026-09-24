@@ -546,6 +546,11 @@ class TestRobotBitcoin(unittest.TestCase):
     def test_montar_modelos(self):
         # d. GEMINI_MODELOS parsing
         self.assertEqual(robot_bitcoin.montar_modelos("a, b,,a", "principal"), ["principal", "a", "b"])
+        # Sem GEMINI_MODELOS: o principal e depois as outras famílias, sem repetir o principal
+        self.assertEqual(robot_bitcoin.montar_modelos(None, "gemini-3.8-flash"),
+                         ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.7-flash",
+                          "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"])
+        self.assertEqual(robot_bitcoin.montar_modelos(None, "gemini-2.5-flash")[:2], ["gemini-2.5-flash", "gemini-3-flash-preview"])
 
     @patch('robot_bitcoin.obter_mercado')
     @patch('robot_bitcoin.obter_noticias')
