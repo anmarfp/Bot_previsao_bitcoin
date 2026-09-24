@@ -10,12 +10,12 @@ Gemini sem cota: trocar de modelo em vez de esperar. Quando o modelo esgota a co
 
 ## Acceptance
 
-- [ ] Given o modelo atual responde 429 de cota DIÁRIA (quotaId com "PerDay") When gerar_json é chamado Then o modelo é marcado como esgotado para o resto do processo e a próxima tentativa usa o próximo modelo da lista imediatamente, sem espera; chamadas seguintes no mesmo processo (as outras amostras e a noite) já começam pelo primeiro modelo não esgotado (teste de regressão que falha no código anterior).
-- [ ] Given o modelo atual falha com erro temporário (429 por minuto, 5xx, rede ou timeout) FALHAS_ANTES_DE_TROCAR vezes seguidas When gerar_json continua tentando Then passa para o próximo modelo, mantendo a espera crescente limitada a ESPERA_MAXIMA (e ESPERA_TIMEOUT após timeout), e percorre a lista em ciclo, sem limite de tentativas (teste).
-- [ ] Given todos os modelos estão com a cota diária esgotada When gerar_json continua tentando Then espera ESPERA_COTA, limpa a marcação e recomeça pelo primeiro modelo, sem desistir (teste).
-- [ ] A lista vem de GEMINI_MODELOS (separada por vírgula) ou, por padrão, [GEMINI_MODEL ou gemini-3.8-flash, gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash], sem repetições; a entrada da manhã guarda "modelos" (o modelo de cada amostra válida) e o log registra o modelo em cada falha e na troca (teste).
-- [ ] A saída do bot é gravada linha a linha no log (stdout com line_buffering no início da execução), para o log mostrar as tentativas enquanto a tarefa ainda roda.
-- [ ] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede e sem esperas reais; requirements.txt sem dependências novas.
+- [x] Given o modelo atual responde 429 de cota DIÁRIA (quotaId com "PerDay") When gerar_json é chamado Then o modelo é marcado como esgotado para o resto do processo e a próxima tentativa usa o próximo modelo da lista imediatamente, sem espera; chamadas seguintes no mesmo processo (as outras amostras e a noite) já começam pelo primeiro modelo não esgotado (teste de regressão que falha no código anterior).
+- [x] Given o modelo atual falha com erro temporário (429 por minuto, 5xx, rede ou timeout) FALHAS_ANTES_DE_TROCAR vezes seguidas When gerar_json continua tentando Then passa para o próximo modelo, mantendo a espera crescente limitada a ESPERA_MAXIMA (e ESPERA_TIMEOUT após timeout), e percorre a lista em ciclo, sem limite de tentativas (teste).
+- [x] Given todos os modelos estão com a cota diária esgotada When gerar_json continua tentando Then espera ESPERA_COTA, limpa a marcação e recomeça pelo primeiro modelo, sem desistir (teste).
+- [x] A lista vem de GEMINI_MODELOS (separada por vírgula) ou, por padrão, [GEMINI_MODEL ou gemini-3.8-flash, gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash], sem repetições; a entrada da manhã guarda "modelos" (o modelo de cada amostra válida) e o log registra o modelo em cada falha e na troca (teste).
+- [x] A saída do bot é gravada linha a linha no log (stdout com line_buffering no início da execução), para o log mostrar as tentativas enquanto a tarefa ainda roda.
+- [x] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede e sem esperas reais; requirements.txt sem dependências novas.
 
 ## Context
 
@@ -38,4 +38,8 @@ Gemini sem cota: trocar de modelo em vez de esperar. Quando o modelo esgota a co
 
 - 2026-09-24: tarefa criada pelo orquestrador. Delegada ao Antigravity (agy) na worktree `../Bot_previsao_bitcoin-wt/modelos`, branch `fix/gemini-trocar-modelo`.
 
+- 2026-09-24: a entrega do agy (cbc1328) foi revisada e aceita com os ajustes do orquestrador (a detecção de 'PerDay' restrita ao 429, o tratamento do 404, comentários restaurados, novo teste). Commit final: 76250d9. 27 testes.
+
 ## Evidence
+
+Artifact: .aihaus/evidence/T-260924-490102.json
