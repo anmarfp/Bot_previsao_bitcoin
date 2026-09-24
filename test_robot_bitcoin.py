@@ -17,6 +17,7 @@ class TestRobotBitcoin(unittest.TestCase):
         
         # Reset histórico path
         robot_bitcoin.HISTORICO_FILE = "historico_bitcoin.json"
+        robot_bitcoin.MODELOS_ESGOTADOS.clear()
         
     def tearDown(self):
         os.chdir(self.original_cwd)
@@ -416,73 +417,170 @@ class TestRobotBitcoin(unittest.TestCase):
 
     @patch('robot_bitcoin.time.sleep')
     @patch('robot_bitcoin.genai.Client')
-    def test_gerar_json_regressao_503(self, mock_client_class, mock_sleep):
-        # a. 8 respostas 503 seguidas de uma resposta válida -> gerar_json devolve o JSON.
-        # Mais ainda: 20 falhas para testar ESPERA_MAXIMA.
+    def test_gerar_json_regressao_429_diario(self, mock_client_class, mock_sleep):
+        # a. 429 diário e depois sucesso no segundo modelo
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
+        from google.genai.errors import ClientError
+        err_diario = ClientError(429, {"error": {"code": 429, "message": "Quota exceeded ... quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier", "status": "RESOURCE_EXHAUSTED"}})
         
-        from google.genai.errors import ServerError, ClientError
-        # 20 erros temporarios e 1 sucesso
-        side_effects = [ServerError(503, {"error": {"code": 503, "message": "x", "status": "UNAVAILABLE"}})] * 20
         mock_response = MagicMock()
         mock_response.text = '{"chave": "valor"}'
-        side_effects.append(mock_response)
         
-        mock_client.models.generate_content.side_effect = side_effects
+        mock_client.models.generate_content.side_effect = [err_diario, mock_response]
         
         def validar_mock(d): pass
         
         dados = robot_bitcoin.gerar_json("prompt", {}, validar_mock)
-        self.assertEqual(dados, {"chave": "valor"})
         
-        # Verificar esperas
-        self.assertEqual(mock_sleep.call_count, 20)
-        esperas = [call[0][0] for call in mock_sleep.call_args_list]
-        self.assertEqual(esperas[0], 20)
-        self.assertEqual(esperas[1], 40)
-        self.assertEqual(esperas[-1], robot_bitcoin.ESPERA_MAXIMA) # Teto
-        self.assertTrue(all(e <= robot_bitcoin.ESPERA_MAXIMA for e in esperas))
+        # Sucesso sem sleep
+        mock_sleep.assert_not_called()
+        self.assertEqual(dados["chave"], "valor")
+        
+        # model= da segunda chamada deve ser o 2o da lista
+        self.assertEqual(mock_client.models.generate_content.call_count, 2)
+        args_1 = mock_client.models.generate_content.call_args_list[0][1]
+        args_2 = mock_client.models.generate_content.call_args_list[1][1]
+        
+        self.assertEqual(args_1["model"], robot_bitcoin.MODELOS_GEMINI[0])
+        self.assertEqual(args_2["model"], robot_bitcoin.MODELOS_GEMINI[1])
+        self.assertEqual(dados["modelo"], robot_bitcoin.MODELOS_GEMINI[1])
+        
+        # Uma segunda chamada no mesmo processo deve começar direto pelo 2o modelo
+        mock_response2 = MagicMock()
+        mock_response2.text = '{"chave": "valor2"}'
+        mock_client.models.generate_content.side_effect = [mock_response2]
+        
+        dados2 = robot_bitcoin.gerar_json("prompt", {}, validar_mock)
+        self.assertEqual(dados2["chave"], "valor2")
+        self.assertEqual(dados2["modelo"], robot_bitcoin.MODELOS_GEMINI[1])
+        args_3 = mock_client.models.generate_content.call_args_list[2][1]
+        self.assertEqual(args_3["model"], robot_bitcoin.MODELOS_GEMINI[1])
 
     @patch('robot_bitcoin.time.sleep')
     @patch('robot_bitcoin.genai.Client')
-    def test_gerar_json_timeout_rede(self, mock_client_class, mock_sleep):
-        # b. httpx.ReadTimeout duas vezes e depois sucesso -> ESPERA_TIMEOUT
+    def test_gerar_json_404_e_429_por_minuto(self, mock_client_class, mock_sleep):
+        # Modelo retirado (404) é pulado sem espera; 429 por minuto espera e não marca o modelo como esgotado
+        from google.genai.errors import ClientError
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
+        err_404 = ClientError(404, {"error": {"code": 404, "message": "model not found", "status": "NOT_FOUND"}})
+        err_minuto = ClientError(429, {"error": {"code": 429, "message": "Too many requests per minute", "status": "RESOURCE_EXHAUSTED"}})
+        resposta = MagicMock()
+        resposta.text = '{"ok": 1}'
+        mock_client.models.generate_content.side_effect = [err_404, err_minuto, resposta]
+
+        dados = robot_bitcoin.gerar_json("prompt", {}, lambda d: None)
+
+        modelos = [c.kwargs["model"] for c in mock_client.models.generate_content.call_args_list]
+        self.assertEqual(modelos, [robot_bitcoin.MODELOS_GEMINI[0], robot_bitcoin.MODELOS_GEMINI[1], robot_bitcoin.MODELOS_GEMINI[1]])
+        self.assertEqual(robot_bitcoin.MODELOS_ESGOTADOS, {robot_bitcoin.MODELOS_GEMINI[0]})
+        mock_sleep.assert_called_once_with(20)  # só o 429 por minuto espera
+        self.assertEqual(dados["modelo"], robot_bitcoin.MODELOS_GEMINI[1])
+
+    @patch('robot_bitcoin.time.sleep')
+    @patch('robot_bitcoin.genai.Client')
+    def test_gerar_json_503_frequente(self, mock_client_class, mock_sleep):
+        # b. 503 em FALHAS_ANTES_DE_TROCAR tentativas seguidas -> troca de modelo; ciclo volta.
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        from google.genai.errors import ServerError
+        err_503 = ServerError(503, {"error": {"code": 503, "message": "x", "status": "UNAVAILABLE"}})
         
-        import httpx
-        side_effects = [httpx.ReadTimeout("Timeout"), httpx.ReadTimeout("Timeout")]
         mock_response = MagicMock()
         mock_response.text = '{"chave": "valor"}'
+        
+        num_modelos = len(robot_bitcoin.MODELOS_GEMINI)
+        # Falha (FALHAS_ANTES_DE_TROCAR) vezes em CADA modelo para forçar o ciclo completo.
+        # Depois falha mais 1 vez no modelo 1 (para provar que voltou) e aí o modelo 1 responde.
+        side_effects = [err_503] * (num_modelos * robot_bitcoin.FALHAS_ANTES_DE_TROCAR + 1)
         side_effects.append(mock_response)
         
         mock_client.models.generate_content.side_effect = side_effects
-        
         def validar_mock(d): pass
         
         dados = robot_bitcoin.gerar_json("prompt", {}, validar_mock)
-        self.assertEqual(dados, {"chave": "valor"})
+        self.assertEqual(dados["chave"], "valor")
         
-        self.assertEqual(mock_sleep.call_count, 2)
-        esperas = [call[0][0] for call in mock_sleep.call_args_list]
-        self.assertEqual(esperas, [robot_bitcoin.ESPERA_TIMEOUT, robot_bitcoin.ESPERA_TIMEOUT])
+        # Verifica as esperas crescentes e limitadas.
+        esperas = [c[0][0] for c in mock_sleep.call_args_list]
+        self.assertEqual(len(esperas), len(side_effects) - 1)
+        self.assertTrue(all(e <= robot_bitcoin.ESPERA_MAXIMA for e in esperas))
         
-        # genai.Client criado com timeout TIMEOUT_GEMINI_MS
-        from google.genai import types
-        # call_args de Client()
-        kwargs = mock_client_class.call_args[1]
-        self.assertIn('http_options', kwargs)
-        self.assertEqual(kwargs['http_options'].timeout, robot_bitcoin.TIMEOUT_GEMINI_MS)
+        # Verifica a troca de modelos.
+        calls = mock_client.models.generate_content.call_args_list
+        modelos_chamados = [c[1]["model"] for c in calls]
+        
+        esperado_modelos = []
+        for i in range(num_modelos):
+            esperado_modelos.extend([robot_bitcoin.MODELOS_GEMINI[i]] * robot_bitcoin.FALHAS_ANTES_DE_TROCAR)
+        esperado_modelos.append(robot_bitcoin.MODELOS_GEMINI[0]) # Voltou pro 1o e falhou
+        esperado_modelos.append(robot_bitcoin.MODELOS_GEMINI[0]) # Voltou pro 1o e acertou
+        
+        self.assertEqual(modelos_chamados, esperado_modelos)
+
+    @patch('robot_bitcoin.time.sleep')
+    @patch('robot_bitcoin.genai.Client')
+    def test_gerar_json_todos_esgotados(self, mock_client_class, mock_sleep):
+        # c. Todos os modelos com 429 diário -> sleep(ESPERA_COTA) e recomeça pelo primeiro
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        from google.genai.errors import ClientError
+        err_diario = ClientError(429, {"error": {"code": 429, "message": "Quota exceeded ... quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier", "status": "RESOURCE_EXHAUSTED"}})
+        
+        mock_response = MagicMock()
+        mock_response.text = '{"chave": "valor"}'
+        
+        num_modelos = len(robot_bitcoin.MODELOS_GEMINI)
+        side_effects = [err_diario] * num_modelos
+        side_effects.append(mock_response)
+        
+        mock_client.models.generate_content.side_effect = side_effects
+        def validar_mock(d): pass
+        
+        dados = robot_bitcoin.gerar_json("prompt", {}, validar_mock)
+        
+        mock_sleep.assert_called_once_with(robot_bitcoin.ESPERA_COTA)
+        self.assertEqual(dados["modelo"], robot_bitcoin.MODELOS_GEMINI[0])
+
+    def test_montar_modelos(self):
+        # d. GEMINI_MODELOS parsing
+        self.assertEqual(robot_bitcoin.montar_modelos("a, b,,a", "principal"), ["principal", "a", "b"])
+
+    @patch('robot_bitcoin.obter_mercado')
+    @patch('robot_bitcoin.obter_noticias')
+    @patch('robot_bitcoin.obter_velas')
+    @patch('robot_bitcoin.obter_derivativos')
+    @patch('robot_bitcoin.gerar_json')
+    @patch('robot_bitcoin.agora')
+    @patch('robot_bitcoin.enviar_telegram')
+    def test_previsao_manha_modelos_diferentes(self, mock_enviar, mock_agora, mock_gerar_json, mock_derivativos, mock_velas, mock_noticias, mock_mercado):
+        # e. previsao_manha com amostras vindas de modelos diferentes
+        mock_mercado.return_value = {"preco": 60000.0, "var_24h": 1.0, "var_7d": 2.0, "max_24h": 61000.0, "min_24h": 59000.0, "volume_24h": 1e9, "fear_greed": "Greed"}
+        mock_noticias.return_value = [{"fonte": "f", "titulo": "t", "resumo": "r", "data": datetime.datetime.now(datetime.timezone.utc)}]
+        mock_velas.return_value = []
+        mock_derivativos.return_value = {"funding": None, "oi_var_24h": None, "ls_ratio": None}
+        mock_agora.return_value = datetime.datetime(2026, 9, 22, 8, 0, tzinfo=robot_bitcoin.FUSO_BRT)
+        
+        mock_gerar_json.side_effect = [
+            {"direcao_prevista": "SUBIR", "probabilidade_subir": 51, "noticias": "n1", "justificativa": "j1", "modelo": "a"},
+            {"direcao_prevista": "SUBIR", "probabilidade_subir": 52, "noticias": "n2", "justificativa": "j2", "modelo": "b"},
+            {"direcao_prevista": "SUBIR", "probabilidade_subir": 53, "noticias": "n3", "justificativa": "j3", "modelo": "a"},
+        ]
+        
+        robot_bitcoin.previsao_manha()
+        
+        hist = robot_bitcoin.manipular_historico("ler")
+        self.assertEqual(hist[-1]["modelos"], ["a", "b", "a"])
 
     @patch('robot_bitcoin.time.sleep')
     @patch('robot_bitcoin.genai.Client')
     def test_gerar_json_erros_fatais_e_invalidos(self, mock_client_class, mock_sleep):
-        # c. ClientError 400 -> relançado sem sleep; JSON inválido 5 vezes -> ValueError
+        # f. 400 relançado sem sleep e sem troca de modelo
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
         
-        from google.genai.errors import ServerError, ClientError
+        from google.genai.errors import ClientError
         mock_client.models.generate_content.side_effect = ClientError(400, {"error": {"code": 400, "message": "x", "status": "INVALID_ARGUMENT"}})
         
         def validar_mock(d): pass
@@ -499,7 +597,7 @@ class TestRobotBitcoin(unittest.TestCase):
         with self.assertRaises(ValueError):
             robot_bitcoin.gerar_json("prompt", {}, validar_mock)
             
-        self.assertEqual(mock_sleep.call_count, 4) # Falha na 5a tentativa levanta excecao sem sleep extra
+        self.assertEqual(mock_sleep.call_count, 4)
 
     @patch('robot_bitcoin.obter_preco_bitcoin')
     @patch('robot_bitcoin.gerar_json')
