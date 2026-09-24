@@ -10,8 +10,8 @@ Lista padrão de modelos com outras famílias do Gemini. Quando os modelos 3.x e
 
 ## Acceptance
 
-- [ ] Given GEMINI_MODELOS não está definido When a lista é montada Then ela é [GEMINI_MODEL ou gemini-3.8-flash, gemini-2.5-flash, gemini-3-flash-preview, gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash, gemini-3.5-flash-lite], alternando famílias para que uma sobrecarga da família 3.x não bloqueie todas as primeiras opções (teste).
-- [ ] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede.
+- [x] Given GEMINI_MODELOS não está definido When a lista é montada Then ela é [GEMINI_MODEL ou gemini-3.8-flash, gemini-2.5-flash, gemini-3-flash-preview, gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash, gemini-3.5-flash-lite], alternando famílias para que uma sobrecarga da família 3.x não bloqueie todas as primeiras opções (teste).
+- [x] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede.
 
 ## Context
 
@@ -31,4 +31,8 @@ Lista padrão de modelos com outras famílias do Gemini. Quando os modelos 3.x e
 
 - 2026-09-24: tarefa criada e implementada pelo orquestrador, na branch `fix/modelos-outras-familias`.
 
+- 2026-09-24: implementado em 4a9b714; 27 testes OK. A previsão de hoje saiu às 11:54 (SUBIR 52%, sem convicção) pelo gemini-2.5-flash, numa execução manual com GEMINI_MODELOS ampliado.
+
 ## Evidence
+
+Artifact: .aihaus/evidence/T-260924-5eca01.json
