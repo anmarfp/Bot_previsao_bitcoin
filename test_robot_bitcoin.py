@@ -18,7 +18,8 @@ class TestRobotBitcoin(unittest.TestCase):
         # Reset histórico path
         robot_bitcoin.HISTORICO_FILE = "historico_bitcoin.json"
         robot_bitcoin.MODELOS_ESGOTADOS.clear()
-        
+        robot_bitcoin.ULTIMO_MODELO_OK = None
+
     def tearDown(self):
         os.chdir(self.original_cwd)
         self.temp_dir.cleanup()
@@ -446,7 +447,9 @@ class TestRobotBitcoin(unittest.TestCase):
         self.assertEqual(args_2["model"], robot_bitcoin.MODELOS_GEMINI[1])
         self.assertEqual(dados["modelo"], robot_bitcoin.MODELOS_GEMINI[1])
         
-        # Uma segunda chamada no mesmo processo deve começar direto pelo 2o modelo
+        # Uma segunda chamada no mesmo processo deve começar direto pelo 2o modelo.
+        # Zera o último modelo que respondeu para provar que é a marcação de cota esgotada que pula o 1o.
+        robot_bitcoin.ULTIMO_MODELO_OK = None
         mock_response2 = MagicMock()
         mock_response2.text = '{"chave": "valor2"}'
         mock_client.models.generate_content.side_effect = [mock_response2]
@@ -547,10 +550,45 @@ class TestRobotBitcoin(unittest.TestCase):
         # d. GEMINI_MODELOS parsing
         self.assertEqual(robot_bitcoin.montar_modelos("a, b,,a", "principal"), ["principal", "a", "b"])
         # Sem GEMINI_MODELOS: o principal e depois as outras famílias, sem repetir o principal
-        self.assertEqual(robot_bitcoin.montar_modelos(None, "gemini-3.8-flash"),
-                         ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.7-flash",
-                          "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"])
-        self.assertEqual(robot_bitcoin.montar_modelos(None, "gemini-2.5-flash")[:2], ["gemini-2.5-flash", "gemini-3-flash-preview"])
+        self.assertEqual(robot_bitcoin.montar_modelos(None, "gemini-4-hydrogen"),
+                         ["gemini-4-hydrogen", "gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.8-flash",
+                          "gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.5-flash-lite"])
+        self.assertEqual(robot_bitcoin.montar_modelos(None, "gemini-2.5-flash")[:2], ["gemini-2.5-flash", "gemini-3.6-flash"])
+        # Sem GEMINI_MODEL, o principal é o Gemini 4 Hydrogen (o servidor não define a variável)
+        if "GEMINI_MODEL" not in os.environ:
+            self.assertEqual(robot_bitcoin.MODELO_GEMINI, "gemini-4-hydrogen")
+
+    @patch('robot_bitcoin.time.sleep')
+    @patch('robot_bitcoin.genai.Client')
+    def test_gerar_json_comeca_pelo_modelo_que_respondeu(self, mock_client_class, mock_sleep):
+        # O principal sobrecarregado (503) não é repetido nas chamadas seguintes do mesmo processo
+        from google.genai.errors import ServerError
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        err_503 = ServerError(503, {"error": {"code": 503, "message": "x", "status": "UNAVAILABLE"}})
+        resposta = MagicMock()
+        resposta.text = '{"ok": 1}'
+        principal, reserva = robot_bitcoin.MODELOS_GEMINI[0], robot_bitcoin.MODELOS_GEMINI[1]
+        mock_client.models.generate_content.side_effect = [err_503] * robot_bitcoin.FALHAS_ANTES_DE_TROCAR + [resposta]
+
+        dados = robot_bitcoin.gerar_json("prompt", {}, lambda d: None)
+        self.assertEqual(dados["modelo"], reserva)
+
+        # Amostras seguintes: começam pela reserva que respondeu, sem nova espera
+        mock_sleep.reset_mock()
+        mock_client.models.generate_content.side_effect = [resposta, resposta]
+        self.assertEqual(robot_bitcoin.gerar_json("prompt", {}, lambda d: None)["modelo"], reserva)
+        self.assertEqual(robot_bitcoin.gerar_json("prompt", {}, lambda d: None)["modelo"], reserva)
+        modelos = [c.kwargs["model"] for c in mock_client.models.generate_content.call_args_list]
+        self.assertEqual(modelos, [principal] * robot_bitcoin.FALHAS_ANTES_DE_TROCAR + [reserva, reserva, reserva])
+        mock_sleep.assert_not_called()
+
+        # Se a reserva esgota a cota diária, volta ao primeiro modelo não esgotado
+        from google.genai.errors import ClientError
+        err_diario = ClientError(429, {"error": {"code": 429, "message": "quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier", "status": "RESOURCE_EXHAUSTED"}})
+        mock_client.models.generate_content.side_effect = [err_diario, resposta]
+        self.assertEqual(robot_bitcoin.gerar_json("prompt", {}, lambda d: None)["modelo"], principal)
+        self.assertEqual(robot_bitcoin.MODELOS_ESGOTADOS, {reserva})
 
     @patch('robot_bitcoin.obter_mercado')
     @patch('robot_bitcoin.obter_noticias')

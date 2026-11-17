@@ -33,11 +33,12 @@ carregar_env()
 
 HISTORICO_FILE = "historico_bitcoin.json"
 FICHEIRO_MEMORIA = "ultimo_preco.txt"
-MODELO_GEMINI = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+MODELO_GEMINI = os.getenv("GEMINI_MODEL", "gemini-4-hydrogen")
 
-# Alterna famílias: uma sobrecarga da família 3.x não deve bloquear todas as primeiras opções
-MODELOS_PADRAO = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.7-flash", "gemini-3.6-flash",
-                  "gemini-3.5-flash", "gemini-3.5-flash-lite"]
+# Alterna famílias: uma sobrecarga da família 3.x não deve bloquear todas as primeiras opções.
+# O gemini-2.5-flash foi descontinuado: a partir de 2026-12-01 a API o redireciona para o gemini-3.5-flash-lite.
+MODELOS_PADRAO = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite",
+                  "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
 
 
 def montar_modelos(valor_env, principal):
@@ -55,6 +56,7 @@ MODELOS_GEMINI = montar_modelos(os.getenv("GEMINI_MODELOS"), MODELO_GEMINI)
 FALHAS_ANTES_DE_TROCAR = 2  # falhas temporárias seguidas no mesmo modelo antes de trocar
 ESPERA_COTA = 1800  # espera (s) quando todos os modelos esgotam a cota diária
 MODELOS_ESGOTADOS = set()  # modelos sem cota (ou retirados) nesta execução
+ULTIMO_MODELO_OK = None  # último modelo que respondeu nesta execução: as chamadas seguintes começam por ele
 
 FAIXA_NEUTRA = 0.003
 
@@ -438,6 +440,7 @@ def extrair_json(texto):
 
 def gerar_json(prompt, config, validar, max_tentativas=5):
     """Chama o Gemini com novas tentativas em erros temporários ou respostas inválidas"""
+    global ULTIMO_MODELO_OK
     client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_GEMINI_MS))
     tentativa_invalida = 0
     tentativa_temp = 0
@@ -449,7 +452,8 @@ def gerar_json(prompt, config, validar, max_tentativas=5):
         time.sleep(ESPERA_COTA)
         MODELOS_ESGOTADOS.clear()
         modelos_disponiveis = MODELOS_GEMINI.copy()
-    idx_modelo = 0
+    # Um modelo sobrecarregado não é repetido a cada amostra: começa pelo que respondeu por último
+    idx_modelo = modelos_disponiveis.index(ULTIMO_MODELO_OK) if ULTIMO_MODELO_OK in modelos_disponiveis else 0
 
     while True:
         modelo_atual = modelos_disponiveis[idx_modelo]
@@ -462,6 +466,7 @@ def gerar_json(prompt, config, validar, max_tentativas=5):
             dados = extrair_json(response.text)
             validar(dados)
             dados["modelo"] = modelo_atual
+            ULTIMO_MODELO_OK = modelo_atual
             return dados
         except genai_errors.APIError as e:
             # Cota diária esgotada (o plano gratuito tem cota por modelo) ou modelo retirado: esperar não adianta

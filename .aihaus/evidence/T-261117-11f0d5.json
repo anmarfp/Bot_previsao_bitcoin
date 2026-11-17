@@ -1,0 +1,96 @@
+{
+  "schema": "aihaus.evidence.v1",
+  "task": "T-261117-11f0d5-gemini-4-hydrogen-como-modelo-principal-e-lista-",
+  "commit": "bc20a60",
+  "verdict": "PASS",
+  "acceptance": [
+    {
+      "criterion": "Given GEMINI_MODEL e GEMINI_MODELOS não estão definidos When a lista é montada Then ela é [gemini-4-hydrogen, gemini-2.5-flash, gemini-3.6-flash, gemini-3.8-flash, gemini-3.1-flash-lite, gemini-3-flash-preview, gemini-3.5-flash-lite], sem o gemini-3.7-flash e o gemini-3.5-flash, que a API já redireciona para o 3.8 e o 3.6 (teste).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "test_montar_modelos confere a lista padrão exata e MODELO_GEMINI == gemini-4-hydrogen sem GEMINI_MODEL; no código anterior (bdc18a2) o mesmo teste falha (exit 1)"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "ssh oracle-bot: ~/bot_bitcoin/.venv/bin/python /tmp/conferir_lista.py (código novo sha256 ba39d78e… em /tmp/hydro-e2e)",
+          "exit_code": 0,
+          "detail": "Com o ambiente do servidor (sem GEMINI_MODEL/GEMINI_MODELOS), MODELOS_GEMINI é a lista do critério e todos os 7 modelos aparecem em models.list com generateContent (faltando: [])"
+        }
+      ]
+    },
+    {
+      "criterion": "Given um modelo falhou FALHAS_ANTES_DE_TROCAR vezes seguidas com erro temporário e o seguinte respondeu When gerar_json é chamado de novo no mesmo processo (as outras amostras da manhã) Then a nova chamada começa pelo modelo que respondeu, sem repetir o sobrecarregado; a cota diária e o 404 continuam como antes (teste de regressão que falha no código anterior).",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "test_gerar_json_comeca_pelo_modelo_que_respondeu (falha no código anterior: 'gemini-3.8-flash' != 'gemini-2.5-flash'); test_gerar_json_regressao_429_diario e test_gerar_json_404_e_429_por_minuto continuam passando, e um mutante que ignora MODELOS_ESGOTADOS volta a falhar depois de bc20a60 (exit 1)"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "ssh oracle-bot: bash /tmp/ensaio_e2e.sh (previsao_manha real com o código novo, cópia do histórico, Telegram bloqueado)",
+          "exit_code": 0,
+          "detail": "2026-11-17 09:45: gemini-4-hydrogen 503 duas vezes, troca para gemini-2.5-flash; as amostras 2 e 3 começaram direto no 2.5-flash; modelos gravados na cópia: [2.5-flash x3]; 131 s; sha256 do historico_bitcoin.json de produção inalterado"
+        }
+      ]
+    },
+    {
+      "criterion": "Given a chave do bot no servidor When a API lista os modelos e o prompt real da manhã é enviado com o SCHEMA_PREVISAO (sem gravar o histórico nem enviar ao Telegram) Then o gemini-4-hydrogen e todos os modelos da lista padrão aparecem com generateContent, e pelo menos um modelo de reserva devolve um JSON aceito por validar_previsao.",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "ssh oracle-bot: ~/bot_bitcoin/.venv/bin/python /tmp/conferir_lista.py",
+          "exit_code": 0,
+          "detail": "gemini-4-hydrogen e os outros 6 modelos da lista padrão aparecem com generateContent"
+        },
+        {
+          "rung": "verified",
+          "source": "tool",
+          "command": "ssh oracle-bot: bash /tmp/ensaio_e2e.sh",
+          "exit_code": 0,
+          "detail": "3 amostras do gemini-2.5-flash com o prompt real (17,6 mil caracteres) e o SCHEMA_PREVISAO aceitas por validar_previsao; em /tmp/testar_hydrogen.py, gemini-3.6-flash (52 s) e gemini-3.1-flash-lite (3 s) também devolveram JSON válido"
+        },
+        {
+          "rung": "written",
+          "source": "agent",
+          "detail": "Sondagem /tmp/hydrogen_config.py (09:48-09:54): gemini-4-hydrogen devolveu 200 com JSON válido na config da noite (116,6 s); com a config da manhã deu 503/504, sem nenhum 400 em 10 tentativas no dia. O Hydrogen está saturado no plano gratuito na semana do lançamento."
+        }
+      ]
+    },
+    {
+      "criterion": "`python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede.",
+      "status": "satisfied",
+      "executable": true,
+      "evidence": [
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m py_compile robot_bitcoin.py",
+          "exit_code": 0
+        },
+        {
+          "rung": "ran",
+          "source": "tool",
+          "command": "C:/Users/Marco/Documents/Bot_previsao_bitcoin/.venv/Scripts/python.exe -m unittest -v test_robot_bitcoin",
+          "exit_code": 0,
+          "detail": "Ran 28 tests OK (0,10 s) em bc20a60"
+        }
+      ]
+    }
+  ]
+}
