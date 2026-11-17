@@ -558,6 +558,15 @@ class TestRobotBitcoin(unittest.TestCase):
         if "GEMINI_MODEL" not in os.environ:
             self.assertEqual(robot_bitcoin.MODELO_GEMINI, "gemini-4-hydrogen")
 
+    @patch('robot_bitcoin.genai.Client')
+    def test_gerar_json_prazo_de_240s(self, mock_client_class):
+        # O Gemini 4 Hydrogen na fila de lançamento passa de 120 s; cada requisição tem prazo de 240 s
+        resposta = MagicMock()
+        resposta.text = '{"ok": 1}'
+        mock_client_class.return_value.models.generate_content.return_value = resposta
+        robot_bitcoin.gerar_json("prompt", {}, lambda d: None)
+        self.assertEqual(mock_client_class.call_args.kwargs["http_options"].timeout, 240_000)
+
     @patch('robot_bitcoin.time.sleep')
     @patch('robot_bitcoin.genai.Client')
     def test_gerar_json_comeca_pelo_modelo_que_respondeu(self, mock_client_class, mock_sleep):

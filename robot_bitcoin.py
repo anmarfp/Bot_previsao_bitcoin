@@ -69,7 +69,7 @@ CODIGOS_TEMPORARIOS = (429, 500, 502, 503, 504)
 # Indisponibilidade e timeout do Gemini não desistem: tenta até conseguir, com estas esperas
 ESPERA_MAXIMA = 300  # teto (s) da espera crescente entre tentativas
 ESPERA_TIMEOUT = 180  # espera (s) depois de um timeout
-TIMEOUT_GEMINI_MS = 120_000  # timeout de cada requisição ao Gemini
+TIMEOUT_GEMINI_MS = 240_000  # prazo de cada requisição ao Gemini (o Hydrogen sob carga passa de 120 s)
 
 CABECALHOS = {"User-Agent": "Mozilla/5.0 (bot-previsao-bitcoin)"}
 
