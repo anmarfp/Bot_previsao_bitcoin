@@ -10,10 +10,10 @@ Gemini 4 Hydrogen como modelo principal e lista de modelos atualizada. O dono pe
 
 ## Acceptance
 
-- [ ] Given GEMINI_MODEL e GEMINI_MODELOS não estão definidos When a lista é montada Then ela é [gemini-4-hydrogen, gemini-2.5-flash, gemini-3.6-flash, gemini-3.8-flash, gemini-3.1-flash-lite, gemini-3-flash-preview, gemini-3.5-flash-lite], sem o gemini-3.7-flash e o gemini-3.5-flash, que a API já redireciona para o 3.8 e o 3.6 (teste).
-- [ ] Given um modelo falhou FALHAS_ANTES_DE_TROCAR vezes seguidas com erro temporário e o seguinte respondeu When gerar_json é chamado de novo no mesmo processo (as outras amostras da manhã) Then a nova chamada começa pelo modelo que respondeu, sem repetir o sobrecarregado; a cota diária e o 404 continuam como antes (teste de regressão que falha no código anterior).
-- [ ] Given a chave do bot no servidor When a API lista os modelos e o prompt real da manhã é enviado com o SCHEMA_PREVISAO (sem gravar o histórico nem enviar ao Telegram) Then o gemini-4-hydrogen e todos os modelos da lista padrão aparecem com generateContent, e pelo menos um modelo de reserva devolve um JSON aceito por validar_previsao.
-- [ ] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede.
+- [x] Given GEMINI_MODEL e GEMINI_MODELOS não estão definidos When a lista é montada Then ela é [gemini-4-hydrogen, gemini-2.5-flash, gemini-3.6-flash, gemini-3.8-flash, gemini-3.1-flash-lite, gemini-3-flash-preview, gemini-3.5-flash-lite], sem o gemini-3.7-flash e o gemini-3.5-flash, que a API já redireciona para o 3.8 e o 3.6 (teste).
+- [x] Given um modelo falhou FALHAS_ANTES_DE_TROCAR vezes seguidas com erro temporário e o seguinte respondeu When gerar_json é chamado de novo no mesmo processo (as outras amostras da manhã) Then a nova chamada começa pelo modelo que respondeu, sem repetir o sobrecarregado; a cota diária e o 404 continuam como antes (teste de regressão que falha no código anterior).
+- [x] Given a chave do bot no servidor When a API lista os modelos e o prompt real da manhã é enviado com o SCHEMA_PREVISAO (sem gravar o histórico nem enviar ao Telegram) Then o gemini-4-hydrogen e todos os modelos da lista padrão aparecem com generateContent, e pelo menos um modelo de reserva devolve um JSON aceito por validar_previsao.
+- [x] `python -m py_compile robot_bitcoin.py` e `python -m unittest -v test_robot_bitcoin` passam sem rede.
 
 ## Context
 
@@ -40,4 +40,12 @@ Gemini 4 Hydrogen como modelo principal e lista de modelos atualizada. O dono pe
 
 - 2026-11-17: tarefa criada pelo orquestrador na branch `feat/gemini-4-hydrogen` (worktree principal), depois do diagnóstico de produção em modo leitura e dos testes de modelo descritos em Context.
 
+- 2026-11-17: implementado em e79f81f (Hydrogen como padrão, lista nova e início pelo último modelo que respondeu). Antes da mudança, os 2 testes novos falharam no código anterior (exit 1); depois, 28 testes OK.
+- 2026-11-17: revisão adversarial independente: ship-with-changes. Achado médio: o teste do 429 diário passava sem a marcação de esgotado por causa do ULTIMO_MODELO_OK; corrigido em bc20a60 (um mutante que ignora MODELOS_ESGOTADOS volta a falhar). Achado baixo, não alterado: depois da espera de 1800 s com todos os modelos esgotados, começar pelo último que respondeu ou pelo primeiro custa a mesma requisição. Informativo: se a reserva que respondeu esgota a cota, volta ao índice 0 (Hydrogen), como antes.
+- 2026-11-17: ensaio de ponta a ponta no servidor (pasta /tmp isolada, Telegram bloqueado): Hydrogen 503 x2, troca para 2.5-flash, amostras 2 e 3 direto no 2.5-flash, 131 s, histórico de produção inalterado. Sondagem do Hydrogen: 200 em 116,6 s com a config da noite; com a config da manhã 503/504, nenhum 400.
+- Risco aberto: com TIMEOUT_GEMINI_MS = 120 s e a fila de lançamento, o Hydrogen tende a dar 504 no prompt real; o bot passa para a reserva. Aumentar o prazo faria o Hydrogen responder mais vezes, ao custo de até ~9 min de atraso quando ele estiver saturado: decisão do dono, não feita aqui.
+- Próximo: deploy manual no servidor somente com aprovação do dono (deployment.md). Depois de 2026-12-01, tirar o gemini-2.5-flash da lista (tarefa no backlog).
+
 ## Evidence
+
+Artifact: .aihaus/evidence/T-261117-11f0d5.json
