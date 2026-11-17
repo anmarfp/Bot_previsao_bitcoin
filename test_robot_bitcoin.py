@@ -447,7 +447,9 @@ class TestRobotBitcoin(unittest.TestCase):
         self.assertEqual(args_2["model"], robot_bitcoin.MODELOS_GEMINI[1])
         self.assertEqual(dados["modelo"], robot_bitcoin.MODELOS_GEMINI[1])
         
-        # Uma segunda chamada no mesmo processo deve começar direto pelo 2o modelo
+        # Uma segunda chamada no mesmo processo deve começar direto pelo 2o modelo.
+        # Zera o último modelo que respondeu para provar que é a marcação de cota esgotada que pula o 1o.
+        robot_bitcoin.ULTIMO_MODELO_OK = None
         mock_response2 = MagicMock()
         mock_response2.text = '{"chave": "valor2"}'
         mock_client.models.generate_content.side_effect = [mock_response2]
